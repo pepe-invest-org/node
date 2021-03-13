@@ -6,6 +6,7 @@ let result = []
 const noop = () => null
 const npm = {
   flatOptions: {
+    tagVersionPrefix: 'v',
     json: false,
   },
   prefix: '',
@@ -13,7 +14,6 @@ const npm = {
 }
 const mocks = {
   libnpmversion: noop,
-  '../../lib/npm.js': npm,
   '../../lib/utils/output.js': (...msg) => {
     for (const m of msg)
       result.push(m)
@@ -21,7 +21,8 @@ const mocks = {
   '../../lib/utils/usage.js': () => 'usage instructions',
 }
 
-const version = requireInject('../../lib/version.js', mocks)
+const Version = requireInject('../../lib/version.js', mocks)
+const version = new Version(npm)
 
 const _processVersions = process.versions
 t.afterEach(cb => {
@@ -42,7 +43,7 @@ t.test('no args', t => {
   npm.prefix = prefix
   Object.defineProperty(process, 'versions', { value: { node: '1.0.0' } })
 
-  version([], err => {
+  version.exec([], err => {
     if (err)
       throw err
 
@@ -61,7 +62,7 @@ t.test('no args', t => {
 })
 
 t.test('too many args', t => {
-  version(['foo', 'bar'], err => {
+  version.exec(['foo', 'bar'], err => {
     t.match(
       err,
       'usage instructions',
@@ -72,17 +73,13 @@ t.test('too many args', t => {
   })
 })
 
-t.test('completion', t => {
-  const { completion } = version
-
-  const testComp = (argv, expect) => {
-    completion({ conf: { argv: { remain: argv } } }, (err, res) => {
-      t.ifError(err)
-      t.strictSame(res, expect, argv.join(' '))
-    })
+t.test('completion', async t => {
+  const testComp = async (argv, expect) => {
+    const res = await version.completion({ conf: { argv: { remain: argv } } })
+    t.strictSame(res, expect, argv.join(' '))
   }
 
-  testComp(['npm', 'version'], [
+  await testComp(['npm', 'version'], [
     'major',
     'minor',
     'patch',
@@ -92,7 +89,7 @@ t.test('completion', t => {
     'prerelease',
     'from-git',
   ])
-  testComp(['npm', 'version', 'major'], [])
+  await testComp(['npm', 'version', 'major'], [])
 
   t.end()
 })
@@ -101,7 +98,7 @@ t.test('failure reading package.json', t => {
   const prefix = t.testdir({})
   npm.prefix = prefix
 
-  version([], err => {
+  version.exec([], err => {
     if (err)
       throw err
 
@@ -124,7 +121,7 @@ t.test('--json option', t => {
   npm.prefix = prefix
   Object.defineProperty(process, 'versions', { value: {} })
 
-  version([], err => {
+  version.exec([], err => {
     if (err)
       throw err
     t.deepEqual(
@@ -137,24 +134,28 @@ t.test('--json option', t => {
 })
 
 t.test('with one arg', t => {
-  const version = requireInject('../../lib/version.js', {
+  const Version = requireInject('../../lib/version.js', {
     ...mocks,
     libnpmversion: (arg, opts) => {
       t.equal(arg, 'major', 'should forward expected value')
       t.deepEqual(
         opts,
         {
+          tagVersionPrefix: 'v',
           json: false,
           path: '',
         },
         'should forward expected options'
       )
-      t.end()
+      return '4.0.0'
     },
   })
+  const version = new Version(npm)
 
-  version(['major'], err => {
+  version.exec(['major'], err => {
     if (err)
       throw err
+    t.same(result, ['v4.0.0'], 'outputs the new version prefixed by the tagVersionPrefix')
+    t.end()
   })
 })

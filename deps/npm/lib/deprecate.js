@@ -1,4 +1,3 @@
-const npm = require('./npm.js')
 const fetch = require('npm-registry-fetch')
 const otplease = require('./utils/otplease.js')
 const npa = require('npm-package-arg')
@@ -7,69 +6,77 @@ const getIdentity = require('./utils/get-identity.js')
 const libaccess = require('libnpmaccess')
 const usageUtil = require('./utils/usage.js')
 
-const UsageError = () =>
-  Object.assign(new Error(`\nUsage: ${usage}`), {
-    code: 'EUSAGE',
-  })
+class Deprecate {
+  constructor (npm) {
+    this.npm = npm
+  }
 
-const usage = usageUtil(
-  'deprecate',
-  'npm deprecate <pkg>[@<version>] <message>'
-)
+  get usage () {
+    return usageUtil(
+      'deprecate',
+      'npm deprecate <pkg>[@<version>] <message>'
+    )
+  }
 
-const completion = (opts, cb) => {
-  if (opts.conf.argv.remain.length > 1)
-    return cb(null, [])
+  async completion (opts) {
+    if (opts.conf.argv.remain.length > 1)
+      return []
 
-  return getIdentity(npm.flatOptions).then((username) => {
-    return libaccess.lsPackages(username, npm.flatOptions).then((packages) => {
-      return Object.keys(packages)
-        .filter((name) => packages[name] === 'write' &&
-          (opts.conf.argv.remain.length === 0 ||
-            name.startsWith(opts.conf.argv.remain[0]))
-        )
-    })
-  }).then((list) => cb(null, list), (err) => cb(err))
-}
+    const username = await getIdentity(this.npm, this.npm.flatOptions)
+    const packages = await libaccess.lsPackages(username, this.npm.flatOptions)
+    return Object.keys(packages)
+      .filter((name) =>
+        packages[name] === 'write' &&
+        (opts.conf.argv.remain.length === 0 ||
+          name.startsWith(opts.conf.argv.remain[0])))
+  }
 
-const cmd = (args, cb) =>
-  deprecate(args)
-    .then(() => cb())
-    .catch(err => cb(err.code === 'EUSAGE' ? err.message : err))
+  exec (args, cb) {
+    this.deprecate(args)
+      .then(() => cb())
+      .catch(err => cb(err.code === 'EUSAGE' ? err.message : err))
+  }
 
-const deprecate = async ([pkg, msg]) => {
-  if (!pkg || !msg)
-    throw UsageError()
+  async deprecate ([pkg, msg]) {
+    if (!pkg || !msg)
+      throw this.usageError()
 
-  // fetch the data and make sure it exists.
-  const p = npa(pkg)
-  // npa makes the default spec "latest", but for deprecation
-  // "*" is the appropriate default.
-  const spec = p.rawSpec === '' ? '*' : p.fetchSpec
+    // fetch the data and make sure it exists.
+    const p = npa(pkg)
+    // npa makes the default spec "latest", but for deprecation
+    // "*" is the appropriate default.
+    const spec = p.rawSpec === '' ? '*' : p.fetchSpec
 
-  if (semver.validRange(spec, true) === null)
-    throw new Error(`invalid version range: ${spec}`)
+    if (semver.validRange(spec, true) === null)
+      throw new Error(`invalid version range: ${spec}`)
 
-  const uri = '/' + p.escapedName
-  const packument = await fetch.json(uri, {
-    ...npm.flatOptions,
-    spec: p,
-    query: { write: true },
-  })
-
-  Object.keys(packument.versions)
-    .filter(v => semver.satisfies(v, spec, { includePrerelease: true }))
-    .forEach(v => {
-      packument.versions[v].deprecated = msg
+    const uri = '/' + p.escapedName
+    const packument = await fetch.json(uri, {
+      ...this.npm.flatOptions,
+      spec: p,
+      query: { write: true },
     })
 
-  return otplease(npm.flatOptions, opts => fetch(uri, {
-    ...opts,
-    spec: p,
-    method: 'PUT',
-    body: packument,
-    ignoreBody: true,
-  }))
+    Object.keys(packument.versions)
+      .filter(v => semver.satisfies(v, spec, { includePrerelease: true }))
+      .forEach(v => {
+        packument.versions[v].deprecated = msg
+      })
+
+    return otplease(this.npm.flatOptions, opts => fetch(uri, {
+      ...opts,
+      spec: p,
+      method: 'PUT',
+      body: packument,
+      ignoreBody: true,
+    }))
+  }
+
+  usageError () {
+    return Object.assign(new Error(`\nUsage: ${this.usage}`), {
+      code: 'EUSAGE',
+    })
+  }
 }
 
-module.exports = Object.assign(cmd, { completion, usage })
+module.exports = Deprecate

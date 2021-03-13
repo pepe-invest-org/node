@@ -1,4 +1,5 @@
 const t = require('tap')
+const fs = require('fs')
 const requireInject = require('require-inject')
 
 const npm = {
@@ -30,7 +31,6 @@ const mocks = {
       return tree
     }
   },
-  '../../lib/npm.js': npm,
   '../../lib/utils/usage.js': () => 'usage instructions',
 }
 
@@ -51,7 +51,7 @@ t.test('no args', t => {
       t.deepEqual(
         args,
         { ...npm.flatOptions, path: npm.prefix },
-        'should call arborist contructor with expected args'
+        'should call arborist constructor with expected args'
       )
     }
 
@@ -79,13 +79,14 @@ t.test('no args', t => {
     },
   }
 
-  const shrinkwrap = requireInject('../../lib/shrinkwrap.js', {
+  const Shrinkwrap = requireInject('../../lib/shrinkwrap.js', {
     ...mocks,
     npmlog,
     '@npmcli/arborist': Arborist,
   })
+  const shrinkwrap = new Shrinkwrap(npm)
 
-  shrinkwrap([], err => {
+  shrinkwrap.exec([], err => {
     if (err)
       throw err
   })
@@ -101,7 +102,7 @@ t.test('no virtual tree', t => {
       t.deepEqual(
         args,
         { ...npm.flatOptions, path: npm.prefix },
-        'should call arborist contructor with expected args'
+        'should call arborist constructor with expected args'
       )
     }
 
@@ -133,13 +134,14 @@ t.test('no virtual tree', t => {
     },
   }
 
-  const shrinkwrap = requireInject('../../lib/shrinkwrap.js', {
+  const Shrinkwrap = requireInject('../../lib/shrinkwrap.js', {
     ...mocks,
     npmlog,
     '@npmcli/arborist': Arborist,
   })
+  const shrinkwrap = new Shrinkwrap(npm)
 
-  shrinkwrap([], err => {
+  shrinkwrap.exec([], err => {
     if (err)
       throw err
   })
@@ -155,7 +157,7 @@ t.test('existing package-json file', t => {
       t.deepEqual(
         args,
         { ...npm.flatOptions, path: npm.prefix },
-        'should call arborist contructor with expected args'
+        'should call arborist constructor with expected args'
       )
     }
 
@@ -193,14 +195,15 @@ t.test('existing package-json file', t => {
     },
   }
 
-  const shrinkwrap = requireInject('../../lib/shrinkwrap.js', {
+  const Shrinkwrap = requireInject('../../lib/shrinkwrap.js', {
     ...mocks,
     fs,
     npmlog,
     '@npmcli/arborist': Arborist,
   })
+  const shrinkwrap = new Shrinkwrap(npm)
 
-  shrinkwrap([], err => {
+  shrinkwrap.exec([], err => {
     if (err)
       throw err
   })
@@ -216,7 +219,7 @@ t.test('update shrinkwrap file version', t => {
       t.deepEqual(
         args,
         { ...npm.flatOptions, path: npm.prefix },
-        'should call arborist contructor with expected args'
+        'should call arborist constructor with expected args'
       )
     }
 
@@ -247,13 +250,14 @@ t.test('update shrinkwrap file version', t => {
     },
   }
 
-  const shrinkwrap = requireInject('../../lib/shrinkwrap.js', {
+  const Shrinkwrap = requireInject('../../lib/shrinkwrap.js', {
     ...mocks,
     npmlog,
     '@npmcli/arborist': Arborist,
   })
+  const shrinkwrap = new Shrinkwrap(npm)
 
-  shrinkwrap([], err => {
+  shrinkwrap.exec([], err => {
     if (err)
       throw err
   })
@@ -269,7 +273,7 @@ t.test('update to date shrinkwrap file', t => {
       t.deepEqual(
         args,
         { ...npm.flatOptions, path: npm.prefix },
-        'should call arborist contructor with expected args'
+        'should call arborist constructor with expected args'
       )
     }
 
@@ -300,24 +304,26 @@ t.test('update to date shrinkwrap file', t => {
     },
   }
 
-  const shrinkwrap = requireInject('../../lib/shrinkwrap.js', {
+  const Shrinkwrap = requireInject('../../lib/shrinkwrap.js', {
     ...mocks,
     npmlog,
     '@npmcli/arborist': Arborist,
   })
+  const shrinkwrap = new Shrinkwrap(npm)
 
-  shrinkwrap([], err => {
+  shrinkwrap.exec([], err => {
     if (err)
       throw err
   })
 })
 
 t.test('shrinkwrap --global', t => {
-  const shrinkwrap = requireInject('../../lib/shrinkwrap.js', mocks)
+  const Shrinkwrap = requireInject('../../lib/shrinkwrap.js', mocks)
 
   npm.flatOptions.global = true
+  const shrinkwrap = new Shrinkwrap(npm)
 
-  shrinkwrap([], err => {
+  shrinkwrap.exec([], err => {
     t.match(
       err,
       /does not work for global packages/,
@@ -325,5 +331,15 @@ t.test('shrinkwrap --global', t => {
     )
     t.equal(err.code, 'ESHRINKWRAPGLOBAL', 'should throw expected error code')
     t.end()
+  })
+})
+
+t.test('works without fs.promises', async t => {
+  t.doesNotThrow(() => {
+    const Shrinkwrap = requireInject('../../lib/shrinkwrap.js', {
+      ...mocks,
+      fs: { ...fs, promises: null },
+    })
+    new Shrinkwrap(npm)
   })
 })

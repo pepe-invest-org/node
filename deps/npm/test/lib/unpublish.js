@@ -18,7 +18,6 @@ const mocks = {
   'npm-package-arg': noop,
   'npm-registry-fetch': { json: noop },
   'read-package-json': cb => cb(),
-  '../../lib/npm.js': npm,
   '../../lib/utils/output.js': (...msg) => {
     result += msg.join('\n')
   },
@@ -78,7 +77,7 @@ t.test('no args --force', t => {
     },
   }
 
-  const unpublish = requireInject('../../lib/unpublish.js', {
+  const Unpublish = requireInject('../../lib/unpublish.js', {
     ...mocks,
     npmlog,
     libnpmpublish,
@@ -88,8 +87,9 @@ t.test('no args --force', t => {
       version: '1.0.0',
     }),
   })
+  const unpublish = new Unpublish(npm)
 
-  unpublish([], err => {
+  unpublish.exec([], err => {
     if (err)
       throw err
 
@@ -104,15 +104,16 @@ t.test('no args --force', t => {
 t.test('no args --force missing package.json', t => {
   npm.flatOptions.force = true
 
-  const unpublish = requireInject('../../lib/unpublish.js', {
+  const Unpublish = requireInject('../../lib/unpublish.js', {
     ...mocks,
     'read-package-json': (path, cb) => cb(Object.assign(
       new Error('ENOENT'),
       { code: 'ENOENT' }
     )),
   })
+  const unpublish = new Unpublish(npm)
 
-  unpublish([], err => {
+  unpublish.exec([], err => {
     t.match(
       err,
       /usage instructions/,
@@ -125,12 +126,13 @@ t.test('no args --force missing package.json', t => {
 t.test('no args --force unknown error reading package.json', t => {
   npm.flatOptions.force = true
 
-  const unpublish = requireInject('../../lib/unpublish.js', {
+  const Unpublish = requireInject('../../lib/unpublish.js', {
     ...mocks,
     'read-package-json': (path, cb) => cb(new Error('ERR')),
   })
+  const unpublish = new Unpublish(npm)
 
-  unpublish([], err => {
+  unpublish.exec([], err => {
     t.match(
       err,
       /ERR/,
@@ -141,11 +143,12 @@ t.test('no args --force unknown error reading package.json', t => {
 })
 
 t.test('no args', t => {
-  const unpublish = requireInject('../../lib/unpublish.js', {
+  const Unpublish = requireInject('../../lib/unpublish.js', {
     ...mocks,
   })
+  const unpublish = new Unpublish(npm)
 
-  unpublish([], err => {
+  unpublish.exec([], err => {
     t.match(
       err,
       /Refusing to delete entire project/,
@@ -156,11 +159,12 @@ t.test('no args', t => {
 })
 
 t.test('too many args', t => {
-  const unpublish = requireInject('../../lib/unpublish.js', {
+  const Unpublish = requireInject('../../lib/unpublish.js', {
     ...mocks,
   })
+  const unpublish = new Unpublish(npm)
 
-  unpublish(['a', 'b'], err => {
+  unpublish.exec(['a', 'b'], err => {
     t.match(
       err,
       /usage instructions/,
@@ -206,14 +210,15 @@ t.test('unpublish <pkg>@version', t => {
     },
   }
 
-  const unpublish = requireInject('../../lib/unpublish.js', {
+  const Unpublish = requireInject('../../lib/unpublish.js', {
     ...mocks,
     npmlog,
     libnpmpublish,
     'npm-package-arg': npa,
   })
+  const unpublish = new Unpublish(npm)
 
-  unpublish(['pkg@1.0.0'], err => {
+  unpublish.exec(['pkg@1.0.0'], err => {
     if (err)
       throw err
 
@@ -235,15 +240,16 @@ t.test('no version found in package.json', t => {
 
   npa.resolve = () => ''
 
-  const unpublish = requireInject('../../lib/unpublish.js', {
+  const Unpublish = requireInject('../../lib/unpublish.js', {
     ...mocks,
     'npm-package-arg': npa,
     'read-package-json': (path, cb) => cb(null, {
       name: 'pkg',
     }),
   })
+  const unpublish = new Unpublish(npm)
 
-  unpublish([], err => {
+  unpublish.exec([], err => {
     if (err)
       throw err
 
@@ -259,7 +265,7 @@ t.test('no version found in package.json', t => {
 t.test('unpublish <pkg> --force no version set', t => {
   npm.flatOptions.force = true
 
-  const unpublish = requireInject('../../lib/unpublish.js', {
+  const Unpublish = requireInject('../../lib/unpublish.js', {
     ...mocks,
     'npm-package-arg': () => ({
       name: 'pkg',
@@ -267,8 +273,9 @@ t.test('unpublish <pkg> --force no version set', t => {
       type: 'tag',
     }),
   })
+  const unpublish = new Unpublish(npm)
 
-  unpublish(['pkg'], err => {
+  unpublish.exec(['pkg'], err => {
     if (err)
       throw err
 
@@ -292,12 +299,13 @@ t.test('silent', t => {
 
   npa.resolve = () => ''
 
-  const unpublish = requireInject('../../lib/unpublish.js', {
+  const Unpublish = requireInject('../../lib/unpublish.js', {
     ...mocks,
     'npm-package-arg': npa,
   })
+  const unpublish = new Unpublish(npm)
 
-  unpublish(['pkg@1.0.0'], err => {
+  unpublish.exec(['pkg@1.0.0'], err => {
     if (err)
       throw err
 
@@ -310,19 +318,17 @@ t.test('silent', t => {
   })
 })
 
-t.test('completion', t => {
-  const testComp = (t, { completion, argv, partialWord, expect, title }) =>
-    new Promise((resolve, rej) => {
-      completion({conf: {argv: {remain: argv}}, partialWord}, (er, res) => {
-        if (er)
-          rej(er)
-        t.strictSame(res, expect, title || argv.join(' '))
-        resolve()
-      })
-    })
+t.test('completion', async t => {
+  const testComp =
+    async (t, { unpublish, argv, partialWord, expect, title }) => {
+      const res = await unpublish.completion(
+        {conf: {argv: {remain: argv}}, partialWord}
+      )
+      t.strictSame(res, expect, title || argv.join(' '))
+    }
 
   t.test('completing with multiple versions from the registry', async t => {
-    const { completion } = requireInject('../../lib/unpublish.js', {
+    const Unpublish = requireInject('../../lib/unpublish.js', {
       ...mocks,
       libnpmaccess: {
         async lsPackages () {
@@ -345,9 +351,10 @@ t.test('completion', t => {
         },
       },
     })
+    const unpublish = new Unpublish(npm)
 
     await testComp(t, {
-      completion,
+      unpublish,
       argv: ['npm', 'unpublish'],
       partialWord: 'pkg',
       expect: [
@@ -359,7 +366,7 @@ t.test('completion', t => {
   })
 
   t.test('no versions retrieved', async t => {
-    const { completion } = requireInject('../../lib/unpublish.js', {
+    const Unpublish = requireInject('../../lib/unpublish.js', {
       ...mocks,
       libnpmaccess: {
         async lsPackages () {
@@ -378,9 +385,10 @@ t.test('completion', t => {
         },
       },
     })
+    const unpublish = new Unpublish(npm)
 
     await testComp(t, {
-      completion,
+      unpublish,
       argv: ['npm', 'unpublish'],
       partialWord: 'pkg',
       expect: [
@@ -391,7 +399,7 @@ t.test('completion', t => {
   })
 
   t.test('packages starting with same letters', async t => {
-    const { completion } = requireInject('../../lib/unpublish.js', {
+    const Unpublish = requireInject('../../lib/unpublish.js', {
       ...mocks,
       libnpmaccess: {
         async lsPackages () {
@@ -404,9 +412,10 @@ t.test('completion', t => {
       },
       'npm-package-arg': require('npm-package-arg'),
     })
+    const unpublish = new Unpublish(npm)
 
     await testComp(t, {
-      completion,
+      unpublish,
       argv: ['npm', 'unpublish'],
       partialWord: 'pkg',
       expect: [
@@ -418,7 +427,7 @@ t.test('completion', t => {
   })
 
   t.test('no packages retrieved', async t => {
-    const { completion } = requireInject('../../lib/unpublish.js', {
+    const Unpublish = requireInject('../../lib/unpublish.js', {
       ...mocks,
       libnpmaccess: {
         async lsPackages () {
@@ -426,9 +435,10 @@ t.test('completion', t => {
         },
       },
     })
+    const unpublish = new Unpublish(npm)
 
     await testComp(t, {
-      completion,
+      unpublish,
       argv: ['npm', 'unpublish'],
       partialWord: 'pkg',
       expect: [],
@@ -437,7 +447,7 @@ t.test('completion', t => {
   })
 
   t.test('no pkg name to complete', async t => {
-    const { completion } = requireInject('../../lib/unpublish.js', {
+    const Unpublish = requireInject('../../lib/unpublish.js', {
       ...mocks,
       libnpmaccess: {
         async lsPackages () {
@@ -448,9 +458,10 @@ t.test('completion', t => {
         },
       },
     })
+    const unpublish = new Unpublish(npm)
 
     await testComp(t, {
-      completion,
+      unpublish,
       argv: ['npm', 'unpublish'],
       partialWord: undefined,
       expect: ['pkg', 'bar'],
@@ -459,7 +470,7 @@ t.test('completion', t => {
   })
 
   t.test('no pkg names retrieved from user account', async t => {
-    const { completion } = requireInject('../../lib/unpublish.js', {
+    const Unpublish = requireInject('../../lib/unpublish.js', {
       ...mocks,
       libnpmaccess: {
         async lsPackages () {
@@ -467,9 +478,10 @@ t.test('completion', t => {
         },
       },
     })
+    const unpublish = new Unpublish(npm)
 
     await testComp(t, {
-      completion,
+      unpublish,
       argv: ['npm', 'unpublish'],
       partialWord: 'pkg',
       expect: [],
@@ -478,13 +490,14 @@ t.test('completion', t => {
   })
 
   t.test('logged out user', async t => {
-    const { completion } = requireInject('../../lib/unpublish.js', {
+    const Unpublish = requireInject('../../lib/unpublish.js', {
       ...mocks,
       '../../lib/utils/get-identity.js': () => Promise.reject(new Error('ERR')),
     })
+    const unpublish = new Unpublish(npm)
 
     await testComp(t, {
-      completion,
+      unpublish,
       argv: ['npm', 'unpublish'],
       partialWord: 'pkg',
       expect: [],
@@ -492,10 +505,11 @@ t.test('completion', t => {
   })
 
   t.test('too many args', async t => {
-    const { completion } = requireInject('../../lib/unpublish.js', mocks)
+    const Unpublish = requireInject('../../lib/unpublish.js', mocks)
+    const unpublish = new Unpublish(npm)
 
     await testComp(t, {
-      completion,
+      unpublish,
       argv: ['npm', 'unpublish', 'foo'],
       partialWord: undefined,
       expect: [],

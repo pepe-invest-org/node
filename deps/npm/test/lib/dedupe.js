@@ -1,14 +1,29 @@
 const { test } = require('tap')
 const requireInject = require('require-inject')
 
-test('should remove dupes using Arborist', (t) => {
-  const dedupe = requireInject('../../lib/dedupe.js', {
-    '../../lib/npm.js': {
-      prefix: 'foo',
-      flatOptions: {
-        dryRun: 'false',
-      },
+const npm = (base) => {
+  const config = base.config
+  return {
+    ...base,
+    flatOptions: { dryRun: false },
+    config: {
+      get: (k) => config[k],
     },
+  }
+}
+
+test('should throw in global mode', (t) => {
+  const Dedupe = requireInject('../../lib/dedupe.js')
+  const dedupe = new Dedupe(npm({ config: { global: true }}))
+
+  dedupe.exec([], er => {
+    t.match(er, { code: 'EDEDUPEGLOBAL' }, 'throws EDEDUPEGLOBAL')
+    t.end()
+  })
+})
+
+test('should remove dupes using Arborist', (t) => {
+  const Dedupe = requireInject('../../lib/dedupe.js', {
     '@npmcli/arborist': function (args) {
       t.ok(args, 'gets options object')
       t.ok(args.path, 'gets path option')
@@ -17,11 +32,17 @@ test('should remove dupes using Arborist', (t) => {
         t.ok(true, 'dedupe is called')
       }
     },
-    '../../lib/utils/reify-finish.js': (arb) => {
+    '../../lib/utils/reify-finish.js': (npm, arb) => {
       t.ok(arb, 'gets arborist tree')
     },
   })
-  dedupe({ dryRun: true }, er => {
+  const dedupe = new Dedupe(npm({
+    prefix: 'foo',
+    config: {
+      'dry-run': 'true',
+    },
+  }))
+  dedupe.exec([], er => {
     if (er)
       throw er
     t.ok(true, 'callback is called')
@@ -30,20 +51,20 @@ test('should remove dupes using Arborist', (t) => {
 })
 
 test('should remove dupes using Arborist - no arguments', (t) => {
-  const dedupe = requireInject('../../lib/dedupe.js', {
-    '../../lib/npm.js': {
-      prefix: 'foo',
-      flatOptions: {
-        dryRun: 'true',
-      },
-    },
+  const Dedupe = requireInject('../../lib/dedupe.js', {
     '@npmcli/arborist': function (args) {
       t.ok(args.dryRun, 'gets dryRun from flatOptions')
       this.dedupe = () => {}
     },
     '../../lib/utils/reify-output.js': () => {},
   })
-  dedupe(null, () => {
+  const dedupe = new Dedupe(npm({
+    prefix: 'foo',
+    config: {
+      'dry-run': true,
+    },
+  }))
+  dedupe.exec(null, () => {
     t.end()
   })
 })

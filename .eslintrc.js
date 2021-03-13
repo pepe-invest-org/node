@@ -53,11 +53,6 @@ module.exports = {
   overrides: [
     {
       files: [
-        'doc/api/esm.md',
-        'doc/api/module.md',
-        'doc/api/modules.md',
-        'doc/api/packages.md',
-        'doc/api/wasi.md',
         'test/es-module/test-esm-type-flag.js',
         'test/es-module/test-esm-type-flag-alias.js',
         '*.mjs',
@@ -67,8 +62,23 @@ module.exports = {
     },
     {
       files: ['**/*.md'],
-      parserOptions: { ecmaFeatures: { impliedStrict: true } },
+      processor: 'markdown/markdown',
+    },
+    {
+      files: ['**/*.md/*.cjs', '**/*.md/*.js'],
+      parserOptions: {
+        sourceType: 'script',
+        ecmaFeatures: { impliedStrict: true }
+      },
       rules: { strict: 'off' },
+    },
+    {
+      files: [
+        '**/*.md/*.mjs',
+        'doc/api/esm.md/*.js',
+        'doc/api/packages.md/*.js',
+      ],
+      parserOptions: { sourceType: 'module' },
     },
   ],
   rules: {
@@ -94,7 +104,13 @@ module.exports = {
         ignorePattern: '.*',
       },
     }],
-    'comma-dangle': ['error', 'only-multiline'],
+    'comma-dangle': ['error', {
+      arrays: 'always-multiline',
+      exports: 'only-multiline',
+      functions: 'only-multiline',
+      imports: 'only-multiline',
+      objects: 'only-multiline',
+    }],
     'comma-spacing': 'error',
     'comma-style': 'error',
     'computed-property-spacing': 'error',

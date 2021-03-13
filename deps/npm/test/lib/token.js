@@ -2,15 +2,13 @@ const { test } = require('tap')
 const requireInject = require('require-inject')
 
 const mocks = {
-  npm: {},
   profile: {},
   output: () => {},
   log: {},
   readUserInfo: {},
 }
 
-const tokenMock = requireInject('../../lib/token.js', {
-  '../../lib/npm.js': mocks.npm,
+const Token = requireInject('../../lib/token.js', {
   '../../lib/utils/output.js': (...args) => mocks.output(...args),
   '../../lib/utils/otplease.js': (opts, fn) => {
     return Promise.resolve().then(() => fn(opts))
@@ -19,56 +17,53 @@ const tokenMock = requireInject('../../lib/token.js', {
   'npm-profile': mocks.profile,
   npmlog: mocks.log,
 })
+const token = new Token({})
 
 const tokenWithMocks = (mockRequests) => {
   for (const mod in mockRequests) {
-    if (typeof mockRequests[mod] === 'function')
-      mocks[mod] = mockRequests[mod]
-    else {
-      for (const key in mockRequests[mod])
-        mocks[mod][key] = mockRequests[mod][key]
+    if (mod !== 'npm') {
+      if (typeof mockRequests[mod] === 'function')
+        mocks[mod] = mockRequests[mod]
+      else {
+        for (const key in mockRequests[mod])
+          mocks[mod][key] = mockRequests[mod][key]
+      }
     }
   }
 
   const reset = () => {
     for (const mod in mockRequests) {
-      if (typeof mockRequests[mod] === 'function')
-        mocks[mod] = () => {}
-      else {
-        for (const key in mockRequests[mod])
-          delete mocks[mod][key]
+      if (mod !== 'npm') {
+        if (typeof mockRequests[mod] === 'function')
+          mocks[mod] = () => {}
+        else {
+          for (const key in mockRequests[mod])
+            delete mocks[mod][key]
+        }
       }
     }
   }
 
-  return [tokenMock, reset]
+  const token = new Token(mockRequests.npm || {})
+  return [token, reset]
 }
 
 test('completion', (t) => {
   t.plan(5)
 
   const testComp = (argv, expect) => {
-    tokenMock.completion({ conf: { argv: { remain: argv } } }, (err, res) => {
-      if (err)
-        throw err
-
-      t.strictSame(res, expect, argv.join(' '))
-    })
+    t.resolveMatch(token.completion({ conf: { argv: { remain: argv } } }), expect, argv.join(' '))
   }
 
-  testComp(['npm', 'token'], [
-    'list',
-    'revoke',
-    'create',
-  ])
-
+  testComp(['npm', 'token'], ['list', 'revoke', 'create'])
   testComp(['npm', 'token', 'list'], [])
   testComp(['npm', 'token', 'revoke'], [])
   testComp(['npm', 'token', 'create'], [])
 
-  tokenMock.completion({ conf: { argv: { remain: ['npm', 'token', 'foobar'] } } }, (err) => {
-    t.match(err, { message: 'foobar not recognized' })
-  })
+  t.rejects(
+    token.completion({ conf: { argv: { remain: ['npm', 'token', 'foobar'] } } }),
+    { message: 'foobar not recognize' }
+  )
 })
 
 test('token foobar', (t) => {
@@ -86,7 +81,7 @@ test('token foobar', (t) => {
 
   t.tearDown(reset)
 
-  tokenMock(['foobar'], (err) => {
+  token.exec(['foobar'], (err) => {
     t.match(err.message, 'foobar is not a recognized subcommand')
   })
 })
@@ -154,7 +149,7 @@ test('token list', (t) => {
 
   t.tearDown(reset)
 
-  token([], (err) => {
+  token.exec([], (err) => {
     t.ifError(err, 'npm token list')
   })
 })
@@ -208,7 +203,7 @@ test('token list json output', (t) => {
 
   t.tearDown(reset)
 
-  token(['list'], (err) => {
+  token.exec(['list'], (err) => {
     t.ifError(err, 'npm token list')
   })
 })
@@ -276,7 +271,7 @@ test('token list parseable output', (t) => {
 
   t.tearDown(reset)
 
-  token(['list'], (err) => {
+  token.exec(['list'], (err) => {
     t.ifError(err, 'npm token list')
   })
 })
@@ -329,7 +324,7 @@ test('token revoke', (t) => {
 
   t.tearDown(reset)
 
-  token(['rm', 'abcd'], (err) => {
+  token.exec(['rm', 'abcd'], (err) => {
     t.ifError(err, 'npm token rm')
   })
 })
@@ -381,7 +376,7 @@ test('token revoke multiple tokens', (t) => {
 
   t.tearDown(reset)
 
-  token(['revoke', 'abcd', 'efgh'], (err) => {
+  token.exec(['revoke', 'abcd', 'efgh'], (err) => {
     t.ifError(err, 'npm token rm')
   })
 })
@@ -433,7 +428,7 @@ test('token revoke json output', (t) => {
 
   t.tearDown(reset)
 
-  token(['delete', 'abcd'], (err) => {
+  token.exec(['delete', 'abcd'], (err) => {
     t.ifError(err, 'npm token rm')
   })
 })
@@ -483,7 +478,7 @@ test('token revoke parseable output', (t) => {
 
   t.tearDown(reset)
 
-  token(['remove', 'abcd'], (err) => {
+  token.exec(['remove', 'abcd'], (err) => {
     t.ifError(err, 'npm token rm')
   })
 })
@@ -533,7 +528,7 @@ test('token revoke by token', (t) => {
 
   t.tearDown(reset)
 
-  token(['rm', 'efgh5678'], (err) => {
+  token.exec(['rm', 'efgh5678'], (err) => {
     t.ifError(err, 'npm token rm')
   })
 })
@@ -553,7 +548,7 @@ test('token revoke requires an id', (t) => {
 
   t.tearDown(reset)
 
-  token(['rm'], (err) => {
+  token.exec(['rm'], (err) => {
     t.match(err.message, '`<tokenKey>` argument is required')
   })
 })
@@ -598,7 +593,7 @@ test('token revoke ambiguous id errors', (t) => {
 
   t.tearDown(reset)
 
-  token(['rm', 'abcd'], (err) => {
+  token.exec(['rm', 'abcd'], (err) => {
     t.match(err.message, 'Token ID "abcd" was ambiguous')
   })
 })
@@ -642,7 +637,7 @@ test('token revoke unknown id errors', (t) => {
 
   t.tearDown(reset)
 
-  token(['rm', 'efgh'], (err) => {
+  token.exec(['rm', 'efgh'], (err) => {
     t.match(err.message, 'Unknown token id or value "efgh".')
   })
 })
@@ -706,7 +701,7 @@ test('token create', (t) => {
 
   t.tearDown(reset)
 
-  token(['create'], (err) => {
+  token.exec(['create'], (err) => {
     t.ifError(err, 'npm token create')
   })
 })
@@ -765,7 +760,7 @@ test('token create json output', (t) => {
 
   t.tearDown(reset)
 
-  token(['create'], (err) => {
+  token.exec(['create'], (err) => {
     t.ifError(err, 'npm token create')
   })
 })
@@ -831,7 +826,7 @@ test('token create parseable output', (t) => {
 
   t.tearDown(reset)
 
-  token(['create'], (err) => {
+  token.exec(['create'], (err) => {
     t.ifError(err, 'npm token create')
   })
 })
@@ -865,7 +860,7 @@ test('token create ipv6 cidr', (t) => {
 
   t.tearDown(reset)
 
-  token(['create'], (err) => {
+  token.exec(['create'], (err) => {
     t.equal(err.message, 'CIDR whitelist can only contain IPv4 addresses, ::1/128 is IPv6', 'returns correct error')
     t.equal(err.code, 'EINVALIDCIDR')
   })
@@ -900,7 +895,7 @@ test('token create invalid cidr', (t) => {
 
   t.tearDown(reset)
 
-  token(['create'], (err) => {
+  token.exec(['create'], (err) => {
     t.equal(err.message, 'CIDR whitelist contains invalid CIDR entry: apple/cider', 'returns correct error')
     t.equal(err.code, 'EINVALIDCIDR')
   })

@@ -8,7 +8,7 @@ If you can reproduce a test failure, search for it in the
 [Node.js issue tracker](https://github.com/nodejs/node/issues) or
 file a new issue.
 
-## Table of Contents
+## Table of contents
 
 * [Supported platforms](#supported-platforms)
   * [Input](#input)
@@ -309,7 +309,7 @@ To install this version of Node.js into a system directory:
 [sudo] make install
 ```
 
-#### Running Tests
+#### Running tests
 
 To verify the build:
 
@@ -379,7 +379,7 @@ You can use
 [node-code-ide-configs](https://github.com/nodejs/node-code-ide-configs)
 to run/debug tests, if your IDE configs are present.
 
-#### Running Coverage
+#### Running coverage
 
 It's good practice to ensure any code you add or change is covered by tests.
 You can do so by running the test suite with coverage enabled:
@@ -613,7 +613,7 @@ packages:
 
 To install Node.js prerequisites using
 [Boxstarter WebLauncher](https://boxstarter.org/WebLauncher), open
-<https://boxstarter.org/package/nr/url?https://raw.githubusercontent.com/nodejs/node/master/tools/bootstrap/windows_boxstarter>
+<https://boxstarter.org/package/nr/url?https://raw.githubusercontent.com/nodejs/node/HEAD/tools/bootstrap/windows_boxstarter>
 with Internet Explorer or Edge browser on the target machine.
 
 Alternatively, you can use PowerShell. Run those commands from an elevated
@@ -623,7 +623,7 @@ PowerShell terminal:
 Set-ExecutionPolicy Unrestricted -Force
 iex ((New-Object System.Net.WebClient).DownloadString('https://boxstarter.org/bootstrapper.ps1'))
 get-boxstarter -Force
-Install-BoxstarterPackage https://raw.githubusercontent.com/nodejs/node/master/tools/bootstrap/windows_boxstarter -DisableReboots
+Install-BoxstarterPackage https://raw.githubusercontent.com/nodejs/node/HEAD/tools/bootstrap/windows_boxstarter -DisableReboots
 ```
 
 The entire installation using Boxstarter will take up approximately 10 GB of

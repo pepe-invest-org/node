@@ -24,7 +24,6 @@
 const common = require('./common.js');
 const fs = require('fs');
 const unified = require('unified');
-const find = require('unist-util-find');
 const visit = require('unist-util-visit');
 const markdown = require('remark-parse');
 const gfm = require('remark-gfm');
@@ -67,6 +66,18 @@ const gtocHTML = unified()
 const templatePath = path.join(docPath, 'template.html');
 const template = fs.readFileSync(templatePath, 'utf8');
 
+function wrapSections(content) {
+  let firstTime = true;
+  return content.toString()
+    .replace(/<h2/g, (heading) => {
+      if (firstTime) {
+        firstTime = false;
+        return '<section>' + heading;
+      }
+      return '</section><section>' + heading;
+    }) + (firstTime ? '' : '</section>');
+}
+
 function toHTML({ input, content, filename, nodeVersion, versions }) {
   filename = path.basename(filename, '.md');
 
@@ -80,7 +91,7 @@ function toHTML({ input, content, filename, nodeVersion, versions }) {
                      .replace('__GTOC__', gtocHTML.replace(
                        `class="nav-${id}"`, `class="nav-${id} active"`))
                      .replace('__EDIT_ON_GITHUB__', editOnGitHub(filename))
-                     .replace('__CONTENT__', content.toString());
+                     .replace('__CONTENT__', wrapSections(content));
 
   const docCreated = input.match(
     /<!--\s*introduced_in\s*=\s*v([0-9]+)\.([0-9]+)\.[0-9]+\s*-->/);
@@ -97,7 +108,13 @@ function toHTML({ input, content, filename, nodeVersion, versions }) {
 // Set the section name based on the first header.  Default to 'Index'.
 function firstHeader() {
   return (tree, file) => {
-    const heading = find(tree, { type: 'heading' });
+    let heading;
+    visit(tree, (node) => {
+      if (node.type === 'heading') {
+        heading = node;
+        return false;
+      }
+    });
 
     if (heading && heading.children.length) {
       const recursiveTextContent = (node) =>
@@ -170,6 +187,8 @@ function linkJsTypeDocs(text) {
   return parts.join('`');
 }
 
+const isJSFlavorSnippet = (node) => node.lang === 'cjs' || node.lang === 'mjs';
+
 // Preprocess headers, stability blockquotes, and YAML blocks.
 function preprocessElements({ filename }) {
   return (tree) => {
@@ -177,7 +196,7 @@ function preprocessElements({ filename }) {
     let headingIndex = -1;
     let heading = null;
 
-    visit(tree, null, (node, index) => {
+    visit(tree, null, (node, index, parent) => {
       if (node.type === 'heading') {
         headingIndex = index;
         heading = node;
@@ -187,15 +206,44 @@ function preprocessElements({ filename }) {
             `No language set in ${filename}, ` +
             `line ${node.position.start.line}`);
         }
-        const language = (node.lang || '').split(' ')[0];
-        const highlighted = getLanguage(language) ?
-          highlight(language, node.value).value :
-          node.value;
+        const className = isJSFlavorSnippet(node) ?
+          `language-js ${node.lang}` :
+          `language-${node.lang}`;
+        const highlighted =
+          `<code class='${className}'>` +
+          (getLanguage(node.lang || '') ?
+            highlight(node.lang, node.value) : node).value +
+          '</code>';
         node.type = 'html';
-        node.value = '<pre>' +
-          `<code class = 'language-${node.lang}'>` +
-          highlighted +
-          '</code></pre>';
+
+        if (isJSFlavorSnippet(node)) {
+          const previousNode = parent.children[index - 1] || {};
+          const nextNode = parent.children[index + 1] || {};
+
+          if (!isJSFlavorSnippet(previousNode) &&
+              isJSFlavorSnippet(nextNode) &&
+              nextNode.lang !== node.lang) {
+            // Saving the highlight code as value to be added in the next node.
+            node.value = highlighted;
+          } else if (isJSFlavorSnippet(previousNode)) {
+            node.value = '<pre>' +
+              '<input class="js-flavor-selector" type="checkbox"' +
+              // If CJS comes in second, ESM should display by default.
+              (node.lang === 'cjs' ? ' checked' : '') +
+              ' aria-label="Show modern ES modules syntax">' +
+              previousNode.value +
+              highlighted +
+              '</pre>';
+            node.lang = null;
+            previousNode.value = '';
+            previousNode.lang = null;
+          } else {
+            // Isolated JS snippet, no need to add the checkbox.
+            node.value = `<pre>${highlighted}</pre>`;
+          }
+        } else {
+          node.value = `<pre>${highlighted}</pre>`;
+        }
       } else if (node.type === 'html' && common.isYAMLBlock(node.value)) {
         node.value = parseYAML(node.value);
 

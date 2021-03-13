@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const yaml = require('yaml');
 const cmark = require('cmark-gfm');
+const mdx = require('@mdx-js/mdx');
 const mkdirp = require('mkdirp');
 const jsdom = require('jsdom');
 const npm = require('../lib/npm.js')
@@ -16,25 +17,121 @@ const outputRoot = path.join(docsRoot, 'output');
 
 const template = fs.readFileSync('template.html').toString();
 
-walk(inputRoot);
+const run = async function() {
+    try {
+        const navPaths = await getNavigationPaths();
+        const fsPaths = await renderFilesystemPaths();
 
-function walk(root, dirRelative) {
+        if (!ensureNavigationComplete(navPaths, fsPaths)) {
+            process.exit(1);
+        }
+    }
+    catch (error) {
+        console.error(error);
+    }
+}
+
+run();
+
+function ensureNavigationComplete(navPaths, fsPaths) {
+    const unmatchedNav = { }, unmatchedFs = { };
+
+    for (const navPath of navPaths) {
+        unmatchedNav[navPath] = true;
+    }
+
+    for (let fsPath of fsPaths) {
+        fsPath = '/' + fsPath.replace(/\.md$/, "");
+
+        if (unmatchedNav[fsPath]) {
+            delete unmatchedNav[fsPath];
+        }
+        else {
+            unmatchedFs[fsPath] = true;
+        }
+    }
+
+    const missingNav = Object.keys(unmatchedNav).sort();
+    const missingFs = Object.keys(unmatchedFs).sort()
+
+    if (missingNav.length > 0 || missingFs.length > 0) {
+        let message = "Error: documentation navigation (nav.yml) does not match filesystem.\n";
+
+        if (missingNav.length > 0) {
+            message += "\nThe following path(s) exist on disk but are not present in nav.yml:\n\n";
+
+            for (const nav of missingNav) {
+                message += `  ${nav}\n`;
+            }
+        }
+
+        if (missingNav.length > 0 && missingFs.length > 0) {
+            message += "\nThe following path(s) exist in nav.yml but are not present on disk:\n\n";
+
+            for (const fs of missingFs) {
+                message += `  ${fs}\n`;
+            }
+        }
+
+        message += "\nUpdate nav.yml to ensure that all files are listed in the appropriate place.";
+
+        console.error(message);
+
+        return false;
+    }
+
+    return true;
+}
+
+function getNavigationPaths() {
+    const navFilename = path.join(docsRoot, 'nav.yml');
+    const nav = yaml.parse(fs.readFileSync(navFilename).toString(), 'utf8');
+
+    return walkNavigation(nav);
+}
+
+function walkNavigation(entries) {
+    const paths = [ ]
+
+    for (const entry of entries) {
+        if (entry.children) {
+            paths.push(... walkNavigation(entry.children));
+        }
+        else {
+            paths.push(entry.url);
+        }
+    }
+
+    return paths;
+}
+
+async function renderFilesystemPaths() {
+    return await walkFilesystem(inputRoot);
+}
+
+async function walkFilesystem(root, dirRelative) {
+    const paths = [ ]
+
     const dirPath = dirRelative ? path.join(root, dirRelative) : root;
+    const children = fs.readdirSync(dirPath);
 
-    fs.readdirSync(dirPath).forEach((childFilename) => {
+    for (const childFilename of children) {
         const childRelative = dirRelative ? path.join(dirRelative, childFilename) : childFilename;
         const childPath = path.join(root, childRelative);
 
         if (fs.lstatSync(childPath).isDirectory()) {
-            walk(root, childRelative);
+            paths.push(... await walkFilesystem(root, childRelative));
         }
         else {
-            translate(childRelative);
+            await renderFile(childRelative);
+            paths.push(childRelative);
         }
-    });
+    }
+
+    return paths;
 }
 
-function translate(childPath) {
+async function renderFile(childPath) {
     const inputPath = path.join(inputRoot, childPath);
 
     if (!inputPath.match(/\.md$/)) {
@@ -70,6 +167,16 @@ function translate(childPath) {
         }
     });
 
+    // Test that mdx can parse this markdown file.  We don't actually
+    // use the output, it's just to ensure that the upstream docs
+    // site (docs.npmjs.com) can parse it when this file gets there.
+    try {
+        await mdx(md, { skipExport: true });
+    }
+    catch (error) {
+        throw new MarkdownError(childPath, error);
+    }
+
     // Inject this data into the template, using a mustache-like
     // replacement scheme.
     const html = template.replace(/\{\{\s*([\w\.]+)\s*\}\}/g, (token, key) => {
@@ -98,7 +205,6 @@ function translate(childPath) {
                 console.log(`warning: unknown token '${token}' in ${inputPath}`);
                 return '';
         }
-        console.log(key);
         return key;
     });
 
@@ -224,4 +330,12 @@ function headerLevel(node) {
 
 function debug(str) {
     console.log(str);
+}
+
+class MarkdownError extends Error {
+    constructor(file, inner) {
+        super(`failed to parse ${file}`);
+        this.file = file;
+        this.inner = inner;
+    }
 }

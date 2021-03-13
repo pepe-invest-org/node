@@ -3,6 +3,12 @@ const { resolve } = require('path')
 const t = require('tap')
 const requireInject = require('require-inject')
 
+const { utimesSync } = require('fs')
+const touchHiddenPackageLock = prefix => {
+  const later = new Date(Date.now() + 10000)
+  utimesSync(`${prefix}/node_modules/.package-lock.json`, later, later)
+}
+
 t.cleanSnapshot = str => str.split(/\r\n/).join('\n')
 
 const simpleNmFixture = {
@@ -100,26 +106,26 @@ const _flatOptions = {
   },
   production: false,
 }
-const ls = requireInject('../../lib/ls.js', {
-  '../../lib/npm.js': {
-    flatOptions: _flatOptions,
-    limit: {
-      fetch: 3,
-    },
-    get prefix () {
-      return _flatOptions.prefix
-    },
-    get globalDir () {
-      return globalDir
-    },
-    config: {
-      get (key) {
-        return _flatOptions[key]
-      },
-    },
-  },
+const LS = requireInject('../../lib/ls.js', {
   '../../lib/utils/output.js': msg => {
     result = msg
+  },
+})
+const ls = new LS({
+  flatOptions: _flatOptions,
+  limit: {
+    fetch: 3,
+  },
+  get prefix () {
+    return _flatOptions.prefix
+  },
+  get globalDir () {
+    return globalDir
+  },
+  config: {
+    get (key) {
+      return _flatOptions[key]
+    },
   },
 })
 
@@ -149,7 +155,7 @@ t.test('ls', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output tree representation of dependencies structure')
       t.end()
@@ -160,7 +166,7 @@ t.test('ls', (t) => {
     prefix = t.testdir({
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err.code, 'ELSPROBLEMS', 'should have ELSPROBLEMS error code')
       t.matchSnapshot(
         redactCwd(err.message),
@@ -182,7 +188,7 @@ t.test('ls', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.equal(err.code, 'ELSPROBLEMS', 'should have error code')
       t.equal(
         redactCwd(err.message),
@@ -207,7 +213,7 @@ t.test('ls', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls(['lorem'], (err) => {
+    ls.exec(['lorem'], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output tree contaning only occurrences of filtered by package and colored output')
       _flatOptions.color = false
@@ -229,7 +235,7 @@ t.test('ls', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls(['.'], (err) => {
+    ls.exec(['.'], (err) => {
       t.ifError(err, 'should not throw on missing dep above current level')
       t.matchSnapshot(redactCwd(result), 'should output tree contaning only occurrences of filtered by package and colored output')
       _flatOptions.all = true
@@ -250,7 +256,7 @@ t.test('ls', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls(['bar'], (err) => {
+    ls.exec(['bar'], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output tree contaning only occurrences of filtered package and its ancestors')
       t.end()
@@ -278,7 +284,7 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls(['bar@*', 'lorem@1.0.0'], (err) => {
+    ls.exec(['bar@*', 'lorem@1.0.0'], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output tree contaning only occurrences of multiple filtered packages and their ancestors')
       t.end()
@@ -297,7 +303,7 @@ t.test('ls', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls(['notadep'], (err) => {
+    ls.exec(['notadep'], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output tree containing no dependencies info')
       t.equal(
@@ -324,7 +330,7 @@ t.test('ls', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output tree containing only top-level dependencies')
       _flatOptions.all = true
@@ -347,7 +353,7 @@ t.test('ls', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output tree containing only top-level dependencies')
       _flatOptions.all = true
@@ -408,7 +414,7 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output tree containing top-level deps and their deps only')
       _flatOptions.all = true
@@ -429,7 +435,7 @@ t.test('ls', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.equal(err.code, 'ELSPROBLEMS', 'should have error code')
       t.equal(
         redactCwd(err.message).replace(/\r\n/g, '\n'),
@@ -456,7 +462,7 @@ t.test('ls', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.equal(err.code, 'ELSPROBLEMS', 'should have error code')
       t.matchSnapshot(redactCwd(result), 'should output tree containing color info')
       _flatOptions.color = false
@@ -486,7 +492,7 @@ t.test('ls', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing dev deps')
       _flatOptions.dev = false
       t.end()
@@ -515,7 +521,7 @@ t.test('ls', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing only development deps')
       _flatOptions.only = null
       t.end()
@@ -554,7 +560,7 @@ t.test('ls', (t) => {
         ...diffDepTypesNmFixture.node_modules,
       },
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing linked deps')
       _flatOptions.link = false
       t.end()
@@ -590,7 +596,7 @@ t.test('ls', (t) => {
         b: t.fixture('symlink', '../b'),
       },
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing linked deps')
       _flatOptions.link = false
       t.end()
@@ -619,7 +625,7 @@ t.test('ls', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing production deps')
       _flatOptions.production = false
       t.end()
@@ -648,7 +654,7 @@ t.test('ls', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing only prod deps')
       _flatOptions.only = null
       t.end()
@@ -677,7 +683,7 @@ t.test('ls', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree info with descriptions')
       _flatOptions.long = true
       t.end()
@@ -708,7 +714,7 @@ t.test('ls', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing top-level deps with descriptions')
       _flatOptions.all = true
       _flatOptions.depth = Infinity
@@ -721,7 +727,7 @@ t.test('ls', (t) => {
     prefix = t.testdir({
       'package.json': '{broken json',
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err, { code: 'EJSONPARSE' }, 'should throw EJSONPARSE error')
       t.matchSnapshot(redactCwd(result), 'should print empty result')
       t.end()
@@ -730,7 +736,7 @@ t.test('ls', (t) => {
 
   t.test('empty location', (t) => {
     prefix = t.testdir({})
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'should not error out on empty locations')
       t.matchSnapshot(redactCwd(result), 'should print empty result')
       t.end()
@@ -758,7 +764,7 @@ t.test('ls', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree signaling mismatching peer dep in problems')
       t.end()
     })
@@ -793,7 +799,7 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree signaling mismatching peer dep in problems')
       _flatOptions.color = false
       t.end()
@@ -822,7 +828,7 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err.code, 'ELSPROBLEMS', 'should have ELSPROBLEMS error code')
       t.match(err.message, /missing: b@\^1.0.0/, 'should list missing dep problem')
       t.matchSnapshot(redactCwd(result), 'should output parseable signaling missing peer dep in problems')
@@ -840,7 +846,7 @@ t.test('ls', (t) => {
         },
       }),
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err.code, 'ELSPROBLEMS', 'should have ELSPROBLEMS error code')
       t.match(err.message, 'missing: peer-dep@*, required by test-npm-ls@1.0.0', 'should have missing peer-dep error msg')
       t.matchSnapshot(redactCwd(result), 'should output tree signaling missing peer dep in problems')
@@ -871,7 +877,7 @@ t.test('ls', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err.code, 'ELSPROBLEMS', 'should have ELSPROBLEMS error code')
       t.match(err.message, /invalid: optional-dep@1.0.0/, 'should have invalid dep error msg')
       t.matchSnapshot(redactCwd(result), 'should output tree with empty entry for missing optional deps')
@@ -910,7 +916,7 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should print tree output containing deduped ref')
       t.end()
@@ -948,7 +954,7 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls(['a'], (err) => {
+    ls.exec(['a'], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should print tree output containing deduped ref')
       _flatOptions.color = false
@@ -996,7 +1002,7 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should print tree output containing deduped ref')
       t.end()
@@ -1045,7 +1051,7 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should print tree output containing deduped ref')
       _flatOptions.all = true
@@ -1095,7 +1101,7 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls(['@npmcli/b'], (err) => {
+    ls.exec(['@npmcli/b'], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should print tree output containing deduped ref')
       _flatOptions.color = false
@@ -1143,7 +1149,7 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls(['@npmcli/c'], (err) => {
+    ls.exec(['@npmcli/c'], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should print tree output containing deduped ref')
       t.end()
@@ -1160,6 +1166,19 @@ t.test('ls', (t) => {
         },
       }),
       node_modules: {
+        '.package-lock.json': JSON.stringify({
+          packages: {
+            'node_modules/a': {
+              name: 'b',
+              version: '1.0.0',
+              from: 'a@npm:b',
+              resolved: 'https://localhost:8080/abbrev/-/abbrev-1.1.1.tgz',
+              requested: {
+                type: 'alias',
+              },
+            },
+          },
+        }),
         a: {
           'package.json': JSON.stringify({
             name: 'b',
@@ -1173,7 +1192,8 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls([], () => {
+    touchHiddenPackageLock(prefix)
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing aliases')
       t.end()
     })
@@ -1189,6 +1209,16 @@ t.test('ls', (t) => {
         },
       }),
       node_modules: {
+        '.package-lock.json': JSON.stringify({
+          packages: {
+            'node_modules/abbrev': {
+              name: 'abbrev',
+              version: '1.1.1',
+              from: 'git+https://github.com/isaacs/abbrev-js.git',
+              resolved: 'git+https://github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
+            },
+          },
+        }),
         abbrev: {
           'package.json': JSON.stringify({
             name: 'abbrev',
@@ -1208,7 +1238,8 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls([], (err) => {
+    touchHiddenPackageLock(prefix)
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output tree containing git refs')
       t.end()
@@ -1252,7 +1283,7 @@ t.test('ls', (t) => {
         },
       }),
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should NOT print git refs in output tree')
       t.end()
@@ -1269,6 +1300,16 @@ t.test('ls', (t) => {
         },
       }),
       node_modules: {
+        '.package-lock.json': JSON.stringify({
+          packages: {
+            'node_modules/simple-output': {
+              name: 'simple-output',
+              version: '2.1.1',
+              resolved: 'https://registry.npmjs.org/simple-output/-/simple-output-2.1.1.tgz',
+              shasum: '3c07708ec9ef3e3c985cf0ddd67df09ab8ec2abc',
+            },
+          },
+        }),
         'simple-output': {
           'package.json': JSON.stringify({
             name: 'simple-output',
@@ -1296,7 +1337,8 @@ t.test('ls', (t) => {
         },
       },
     })
-    ls([], () => {
+    touchHiddenPackageLock(prefix)
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should not be printed in tree output')
       t.end()
     })
@@ -1332,7 +1374,7 @@ t.test('ls', (t) => {
     // mimics lib/npm.js globalDir getter but pointing to fixtures
     globalDir = resolve(fixtures, 'node_modules')
 
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should print tree and not mark top-level items extraneous')
       globalDir = 'MISSING_GLOBAL_DIR'
       _flatOptions.global = false
@@ -1385,7 +1427,7 @@ t.test('ls', (t) => {
       },
     })
 
-    ls(['c'], (err) => {
+    ls.exec(['c'], (err) => {
       t.match(err.code, 'ELSPROBLEMS', 'should have ELSPROBLEMS error code')
       t.matchSnapshot(redactCwd(result), 'should print tree and not duplicate child of missing items')
       t.end()
@@ -1429,12 +1471,12 @@ t.test('ls', (t) => {
       },
     })
 
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'should NOT have ELSPROBLEMS error code')
       t.matchSnapshot(redactCwd(result), 'should list workspaces properly')
 
       // should also be able to filter out one of the workspaces
-      ls(['a'], (err) => {
+      ls.exec(['a'], (err) => {
         t.ifError(err, 'should NOT have ELSPROBLEMS error code when filter')
         t.matchSnapshot(redactCwd(result), 'should filter single workspace')
 
@@ -1492,17 +1534,17 @@ t.test('ls', (t) => {
     })
 
     t.plan(6)
-    ls(['a'], (err) => {
+    ls.exec(['a'], (err) => {
       t.ifError(err, 'should NOT have ELSPROBLEMS error code')
       t.matchSnapshot(redactCwd(result), 'should list a in top-level only')
 
-      ls(['d'], (err) => {
+      ls.exec(['d'], (err) => {
         t.ifError(err, 'should NOT have ELSPROBLEMS error code when filter')
         t.matchSnapshot(redactCwd(result), 'should print empty results msg')
 
         // if no --depth config is defined, should print path to dep
         _flatOptions.depth = null // default config value
-        ls(['d'], (err) => {
+        ls.exec(['d'], (err) => {
           t.ifError(err, 'should NOT have ELSPROBLEMS error code when filter')
           t.matchSnapshot(redactCwd(result), 'should print expected result')
         })
@@ -1534,7 +1576,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output parseable representation of dependencies structure')
       t.end()
@@ -1545,7 +1587,7 @@ t.test('ls --parseable', (t) => {
     prefix = t.testdir({
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err.code, 'ELSPROBLEMS', 'should have ELSPROBLEMS error code')
       t.matchSnapshot(
         redactCwd(err.message),
@@ -1567,7 +1609,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.equal(err.code, 'ELSPROBLEMS', 'should have error code')
       t.matchSnapshot(redactCwd(result), 'should output containing problems info')
       t.end()
@@ -1586,7 +1628,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls(['lorem'], (err) => {
+    ls.exec(['lorem'], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output parseable contaning only occurrences of filtered by package')
       t.end()
@@ -1605,7 +1647,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls(['bar'], (err) => {
+    ls.exec(['bar'], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output parseable contaning only occurrences of filtered package')
       t.end()
@@ -1633,7 +1675,7 @@ t.test('ls --parseable', (t) => {
         },
       },
     })
-    ls(['bar@*', 'lorem@1.0.0'], (err) => {
+    ls.exec(['bar@*', 'lorem@1.0.0'], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output parseable contaning only occurrences of multiple filtered packages and their ancestors')
       t.end()
@@ -1652,7 +1694,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls(['notadep'], (err) => {
+    ls.exec(['notadep'], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output parseable output containing no dependencies info')
       t.equal(
@@ -1679,7 +1721,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output parseable output containing only top-level dependencies')
       _flatOptions.all = true
@@ -1702,7 +1744,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output tree containing only top-level dependencies')
       _flatOptions.all = true
@@ -1725,7 +1767,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output parseable containing top-level deps and their deps only')
       _flatOptions.all = true
@@ -1746,7 +1788,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err, { code: 'ELSPROBLEMS' }, 'should list dep problems')
       t.matchSnapshot(redactCwd(result), 'should output parseable containing top-level deps and their deps only')
       t.end()
@@ -1775,7 +1817,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing dev deps')
       _flatOptions.dev = false
       t.end()
@@ -1804,7 +1846,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing only development deps')
       _flatOptions.only = null
       t.end()
@@ -1843,7 +1885,7 @@ t.test('ls --parseable', (t) => {
         ...diffDepTypesNmFixture.node_modules,
       },
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing linked deps')
       _flatOptions.link = false
       t.end()
@@ -1872,7 +1914,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing production deps')
       _flatOptions.production = false
       t.end()
@@ -1901,7 +1943,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing only prod deps')
       _flatOptions.only = null
       t.end()
@@ -1930,7 +1972,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree info with descriptions')
       _flatOptions.long = true
       t.end()
@@ -1948,7 +1990,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.equal(err.code, 'ELSPROBLEMS', 'should have error code')
       t.match(redactCwd(err.message), 'extraneous: lorem@1.0.0 {CWD}/ls-ls-parseable--long-with-extraneous-deps/node_modules/lorem', 'should have error code')
       t.matchSnapshot(redactCwd(result), 'should output long parseable output with extraneous info')
@@ -1969,7 +2011,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err, { code: 'ELSPROBLEMS' }, 'should list dep problems')
       t.matchSnapshot(redactCwd(result), 'should output parseable result containing EXTRANEOUS/INVALID labels')
       _flatOptions.long = false
@@ -2009,7 +2051,7 @@ t.test('ls --parseable', (t) => {
         ...diffDepTypesNmFixture.node_modules,
       },
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.matchSnapshot(redactCwd(result), 'should output parseable results with symlink targets')
       _flatOptions.long = false
@@ -2041,7 +2083,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing top-level deps with descriptions')
       _flatOptions.all = true
       _flatOptions.depth = Infinity
@@ -2054,7 +2096,7 @@ t.test('ls --parseable', (t) => {
     prefix = t.testdir({
       'package.json': '{broken json',
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err, { code: 'EJSONPARSE' }, 'should throw EJSONPARSE error')
       t.matchSnapshot(redactCwd(result), 'should print empty result')
       t.end()
@@ -2063,7 +2105,7 @@ t.test('ls --parseable', (t) => {
 
   t.test('empty location', (t) => {
     prefix = t.testdir({})
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'should not error out on empty locations')
       t.matchSnapshot(redactCwd(result), 'should print empty result')
       t.end()
@@ -2091,7 +2133,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output parseable signaling missing peer dep in problems')
       t.end()
     })
@@ -2119,7 +2161,7 @@ t.test('ls --parseable', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err.code, 'ELSPROBLEMS', 'should have ELSPROBLEMS error code')
       t.match(err.message, /invalid: optional-dep@1.0.0/, 'should have invalid dep error msg')
       t.matchSnapshot(redactCwd(result), 'should output parseable with empty entry for missing optional deps')
@@ -2157,7 +2199,7 @@ t.test('ls --parseable', (t) => {
         },
       },
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should print tree output omitting deduped ref')
       t.end()
     })
@@ -2173,6 +2215,15 @@ t.test('ls --parseable', (t) => {
         },
       }),
       node_modules: {
+        '.package-lock.json': JSON.stringify({
+          packages: {
+            'node_modules/a': {
+              name: 'b',
+              version: '1.0.0',
+              resolved: 'https://localhost:8080/abbrev/-/abbrev-1.1.1.tgz',
+            },
+          },
+        }),
         a: {
           'package.json': JSON.stringify({
             name: 'b',
@@ -2186,7 +2237,8 @@ t.test('ls --parseable', (t) => {
         },
       },
     })
-    ls([], () => {
+    touchHiddenPackageLock(prefix)
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing aliases')
       t.end()
     })
@@ -2202,6 +2254,15 @@ t.test('ls --parseable', (t) => {
         },
       }),
       node_modules: {
+        '.package-lock.json': JSON.stringify({
+          packages: {
+            'node_modules/abbrev': {
+              name: 'abbrev',
+              version: '1.1.1',
+              resolved: 'git+https://github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
+            },
+          },
+        }),
         abbrev: {
           'package.json': JSON.stringify({
             name: 'abbrev',
@@ -2221,7 +2282,8 @@ t.test('ls --parseable', (t) => {
         },
       },
     })
-    ls([], () => {
+    touchHiddenPackageLock(prefix)
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should output tree containing git refs')
       t.end()
     })
@@ -2237,6 +2299,16 @@ t.test('ls --parseable', (t) => {
         },
       }),
       node_modules: {
+        '.package-lock.json': JSON.stringify({
+          packages: {
+            'node_modules/simple-output': {
+              name: 'simple-output',
+              version: '2.1.1',
+              resolved: 'https://registry.npmjs.org/simple-output/-/simple-output-2.1.1.tgz',
+              shasum: '3c07708ec9ef3e3c985cf0ddd67df09ab8ec2abc',
+            },
+          },
+        }),
         'simple-output': {
           'package.json': JSON.stringify({
             name: 'simple-output',
@@ -2264,7 +2336,8 @@ t.test('ls --parseable', (t) => {
         },
       },
     })
-    ls([], () => {
+    touchHiddenPackageLock(prefix)
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should not be printed in tree output')
       t.end()
     })
@@ -2300,7 +2373,7 @@ t.test('ls --parseable', (t) => {
     // mimics lib/npm.js globalDir getter but pointing to fixtures
     globalDir = resolve(fixtures, 'node_modules')
 
-    ls([], () => {
+    ls.exec([], () => {
       t.matchSnapshot(redactCwd(result), 'should print parseable output for global deps')
       globalDir = 'MISSING_GLOBAL_DIR'
       _flatOptions.global = false
@@ -2327,7 +2400,7 @@ t.test('ls --json', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.deepEqual(
         jsonParse(result),
@@ -2358,7 +2431,7 @@ t.test('ls --json', (t) => {
     prefix = t.testdir({
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err, { code: 'ELSPROBLEMS' }, 'should list dep problems')
       t.deepEqual(
         jsonParse(result),
@@ -2414,7 +2487,7 @@ t.test('ls --json', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.equal(
         redactCwd(err.message),
         'extraneous: lorem@1.0.0 {CWD}/ls-ls-json-extraneous-deps/node_modules/lorem',
@@ -2469,7 +2542,7 @@ t.test('ls --json', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls(['lorem'], (err) => {
+    ls.exec(['lorem'], (err) => {
       t.ifError(err, 'npm ls')
       t.deepEqual(
         jsonParse(result),
@@ -2505,7 +2578,7 @@ t.test('ls --json', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls(['bar'], (err) => {
+    ls.exec(['bar'], (err) => {
       t.ifError(err, 'npm ls')
       t.deepEqual(
         jsonParse(result),
@@ -2550,7 +2623,7 @@ t.test('ls --json', (t) => {
         },
       },
     })
-    ls(['bar@*', 'lorem@1.0.0'], (err) => {
+    ls.exec(['bar@*', 'lorem@1.0.0'], (err) => {
       t.ifError(err, 'npm ls')
       t.deepEqual(
         jsonParse(result),
@@ -2589,7 +2662,7 @@ t.test('ls --json', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls(['notadep'], (err) => {
+    ls.exec(['notadep'], (err) => {
       t.ifError(err, 'npm ls')
       t.deepEqual(
         jsonParse(result),
@@ -2623,7 +2696,7 @@ t.test('ls --json', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.deepEqual(
         jsonParse(result),
@@ -2661,7 +2734,7 @@ t.test('ls --json', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.deepEqual(
         jsonParse(result),
@@ -2699,7 +2772,7 @@ t.test('ls --json', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'npm ls')
       t.deepEqual(
         jsonParse(result),
@@ -2740,7 +2813,7 @@ t.test('ls --json', (t) => {
       }),
       ...simpleNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err, { code: 'ELSPROBLEMS' }, 'should list dep problems')
       t.deepEqual(
         jsonParse(result),
@@ -2809,7 +2882,7 @@ t.test('ls --json', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -2856,7 +2929,7 @@ t.test('ls --json', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -2913,7 +2986,7 @@ t.test('ls --json', (t) => {
         ...diffDepTypesNmFixture.node_modules,
       },
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -2955,7 +3028,7 @@ t.test('ls --json', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -2996,7 +3069,7 @@ t.test('ls --json', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -3109,7 +3182,7 @@ t.test('ls --json', (t) => {
         },
       }),
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -3166,7 +3239,7 @@ t.test('ls --json', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -3304,7 +3377,7 @@ t.test('ls --json', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -3387,7 +3460,7 @@ t.test('ls --json', (t) => {
     prefix = t.testdir({
       'package.json': '{broken json',
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err.message, 'Failed to parse root package.json', 'should have missin root package.json msg')
       t.match(err.code, 'EJSONPARSE', 'should have EJSONPARSE error code')
       t.deepEqual(
@@ -3406,7 +3479,7 @@ t.test('ls --json', (t) => {
 
   t.test('empty location', (t) => {
     prefix = t.testdir({})
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.ifError(err, 'should not error out on empty locations')
       t.deepEqual(
         jsonParse(result),
@@ -3438,7 +3511,7 @@ t.test('ls --json', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err.code, 'ELSPROBLEMS', 'Should have ELSPROBLEMS error code')
       t.deepEqual(
         jsonParse(result),
@@ -3498,7 +3571,7 @@ t.test('ls --json', (t) => {
       }),
       ...diffDepTypesNmFixture,
     })
-    ls([], (err) => {
+    ls.exec([], (err) => {
       t.match(err.code, 'ELSPROBLEMS', 'should have ELSPROBLEMS error code')
       t.match(err.message, /invalid: optional-dep@1.0.0/, 'should have invalid dep error msg')
       t.deepEqual(
@@ -3570,7 +3643,7 @@ t.test('ls --json', (t) => {
         },
       },
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -3606,20 +3679,29 @@ t.test('ls --json', (t) => {
         },
       }),
       node_modules: {
+        '.package-lock.json': JSON.stringify({
+          packages: {
+            'node_modules/a': {
+              name: 'b',
+              version: '1.0.0',
+              from: 'a@npm:b',
+              resolved: 'https://localhost:8080/abbrev/-/abbrev-1.1.1.tgz',
+              requested: {
+                type: 'alias',
+              },
+            },
+          },
+        }),
         a: {
           'package.json': JSON.stringify({
             name: 'b',
             version: '1.0.0',
-            _from: 'a@npm:b',
-            _resolved: 'https://localhost:8080/abbrev/-/abbrev-1.1.1.tgz',
-            _requested: {
-              type: 'alias',
-            },
           }),
         },
       },
     })
-    ls([], () => {
+    touchHiddenPackageLock(prefix)
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -3648,6 +3730,17 @@ t.test('ls --json', (t) => {
         },
       }),
       node_modules: {
+        '.package-lock.json': JSON.stringify({
+          packages: {
+            'node_modules/abbrev': {
+              name: 'abbrev',
+              version: '1.1.1',
+              id: 'abbrev@1.1.1',
+              from: 'git+https://github.com/isaacs/abbrev-js.git',
+              resolved: 'git+https://github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
+            },
+          },
+        }),
         abbrev: {
           'package.json': JSON.stringify({
             name: 'abbrev',
@@ -3667,7 +3760,8 @@ t.test('ls --json', (t) => {
         },
       },
     })
-    ls([], () => {
+    touchHiddenPackageLock(prefix)
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -3696,6 +3790,33 @@ t.test('ls --json', (t) => {
         },
       }),
       node_modules: {
+        '.package-lock.json': JSON.stringify({
+          packages: {
+            'node_modules/simple-output': {
+              name: 'simple-output',
+              version: '2.1.1',
+              _from: 'simple-output',
+              _id: 'simple-output@2.1.1',
+              _resolved: 'https://registry.npmjs.org/simple-output/-/simple-output-2.1.1.tgz',
+              _requested: {
+                type: 'tag',
+                registry: true,
+                raw: 'simple-output',
+                name: 'simple-output',
+                escapedName: 'simple-output',
+                rawSpec: '',
+                saveSpec: null,
+                fetchSpec: 'latest',
+              },
+              _requiredBy: [
+                '#USER',
+                '/',
+              ],
+              _shasum: '3c07708ec9ef3e3c985cf0ddd67df09ab8ec2abc',
+              _spec: 'simple-output',
+            },
+          },
+        }),
         'simple-output': {
           'package.json': JSON.stringify({
             name: 'simple-output',
@@ -3723,7 +3844,8 @@ t.test('ls --json', (t) => {
         },
       },
     })
-    ls([], () => {
+    touchHiddenPackageLock(prefix)
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -3748,7 +3870,7 @@ t.test('ls --json', (t) => {
         version: '1.0.0',
       }),
     })
-    ls([], () => {
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {
@@ -3791,7 +3913,7 @@ t.test('ls --json', (t) => {
     // mimics lib/npm.js globalDir getter but pointing to fixtures
     globalDir = resolve(fixtures, 'node_modules')
 
-    ls([], () => {
+    ls.exec([], () => {
       t.deepEqual(
         jsonParse(result),
         {

@@ -3,7 +3,7 @@ const requireInject = require('require-inject')
 const { EventEmitter } = require('events')
 
 let npmUsageArg = null
-const npmUsage = (arg) => {
+const npmUsage = (npm, arg) => {
   npmUsageArg = arg
 }
 
@@ -55,37 +55,39 @@ const glob = (p, cb) => {
 
 let spawnBin = null
 let spawnArgs = null
+let spawnCode = 0
 const spawn = (bin, args) => {
   spawnBin = bin
   spawnArgs = args
   const spawnEmitter = new EventEmitter()
   process.nextTick(() => {
-    spawnEmitter.emit('close', 0)
+    spawnEmitter.emit('exit', spawnCode)
   })
   return spawnEmitter
 }
 
 let openUrlArg = null
-const openUrl = (url, msg, cb) => {
+const openUrl = async (npm, url, msg) => {
   openUrlArg = url
-  return cb()
 }
 
-const help = requireInject('../../lib/help.js', {
-  '../../lib/npm.js': npm,
+const Help = requireInject('../../lib/help.js', {
   '../../lib/utils/npm-usage.js': npmUsage,
   '../../lib/utils/open-url.js': openUrl,
   '../../lib/utils/output.js': output,
-  '../../lib/utils/spawn.js': spawn,
+  child_process: {
+    spawn,
+  },
   glob,
 })
+const help = new Help(npm)
 
 test('npm help', t => {
   t.teardown(() => {
     npmUsageArg = null
   })
 
-  return help([], (err) => {
+  return help.exec([], (err) => {
     if (err)
       throw err
 
@@ -98,20 +100,13 @@ test('npm help completion', async t => {
   t.teardown(() => {
     globErr = null
   })
-  const completion = (opts) => new Promise((resolve, reject) => {
-    help.completion(opts, (err, res) => {
-      if (err)
-        return reject(err)
-      return resolve(res)
-    })
-  })
 
-  const noArgs = await completion({ conf: { argv: { remain: [] } } })
+  const noArgs = await help.completion({ conf: { argv: { remain: [] } } })
   t.strictSame(noArgs, ['help', 'whoami', 'npmrc', 'disputes'], 'outputs available help pages')
-  const threeArgs = await completion({ conf: { argv: { remain: ['one', 'two', 'three'] } } })
+  const threeArgs = await help.completion({ conf: { argv: { remain: ['one', 'two', 'three'] } } })
   t.strictSame(threeArgs, [], 'outputs no results when more than 2 args are provided')
   globErr = new Error('glob failed')
-  t.rejects(completion({ conf: { argv: { remain: [] } } }), /glob failed/, 'glob errors propagate')
+  t.rejects(help.completion({ conf: { argv: { remain: [] } } }), /glob failed/, 'glob errors propagate')
 })
 
 test('npm help -h', t => {
@@ -121,7 +116,7 @@ test('npm help -h', t => {
     OUTPUT.length = 0
   })
 
-  return help(['help'], (err) => {
+  return help.exec(['help'], (err) => {
     if (err)
       throw err
 
@@ -135,7 +130,7 @@ test('npm help multiple args calls search', t => {
     helpSearchArgs = null
   })
 
-  return help(['run', 'script'], (err) => {
+  return help.exec(['run', 'script'], (err) => {
     if (err)
       throw err
 
@@ -151,7 +146,7 @@ test('npm help no matches calls search', t => {
     globResult = globDefaults
   })
 
-  return help(['asdfasdf'], (err) => {
+  return help.exec(['asdfasdf'], (err) => {
     if (err)
       throw err
 
@@ -168,7 +163,7 @@ test('npm help glob errors propagate', t => {
     spawnArgs = null
   })
 
-  return help(['whoami'], (err) => {
+  return help.exec(['whoami'], (err) => {
     t.match(err, /glob failed/, 'glob error propagates')
     t.end()
   })
@@ -182,7 +177,7 @@ test('npm help whoami', t => {
     spawnArgs = null
   })
 
-  return help(['whoami'], (err) => {
+  return help.exec(['whoami'], (err) => {
     if (err)
       throw err
 
@@ -206,7 +201,7 @@ test('npm help 1 install', t => {
     spawnArgs = null
   })
 
-  return help(['1', 'install'], (err) => {
+  return help.exec(['1', 'install'], (err) => {
     if (err)
       throw err
 
@@ -229,7 +224,7 @@ test('npm help 5 install', t => {
     spawnArgs = null
   })
 
-  return help(['5', 'install'], (err) => {
+  return help.exec(['5', 'install'], (err) => {
     if (err)
       throw err
 
@@ -251,7 +246,7 @@ test('npm help 7 config', t => {
     spawnArgs = null
   })
 
-  return help(['7', 'config'], (err) => {
+  return help.exec(['7', 'config'], (err) => {
     if (err)
       throw err
 
@@ -274,7 +269,7 @@ test('npm help with browser viewer and invalid section throws', t => {
     spawnArgs = null
   })
 
-  return help(['9', 'config'], (err) => {
+  return help.exec(['9', 'config'], (err) => {
     t.match(err, /invalid man section: 9/, 'throws appropriate error')
     t.end()
   })
@@ -288,7 +283,7 @@ test('npm help global redirects to folders', t => {
     spawnArgs = null
   })
 
-  return help(['global'], (err) => {
+  return help.exec(['global'], (err) => {
     if (err)
       throw err
 
@@ -306,7 +301,7 @@ test('npm help package.json redirects to package-json', t => {
     spawnArgs = null
   })
 
-  return help(['package.json'], (err) => {
+  return help.exec(['package.json'], (err) => {
     if (err)
       throw err
 
@@ -329,10 +324,33 @@ test('npm help ?(un)star', t => {
     spawnArgs = null
   })
 
-  return help(['?(un)star'], (err) => {
+  return help.exec(['?(un)star'], (err) => {
     if (err)
       throw err
 
+    t.equal(spawnBin, 'emacsclient', 'maps woman to emacs correctly')
+    t.strictSame(spawnArgs, ['-e', `(woman-find-file '/root/man/man1/npm-unstar.1')`], 'passes the correct arguments')
+    t.end()
+  })
+})
+
+test('npm help - woman viewer propagates errors', t => {
+  npmConfig.viewer = 'woman'
+  spawnCode = 1
+  globResult = [
+    '/root/man/man1/npm-star.1',
+    '/root/man/man1/npm-unstar.1',
+  ]
+  t.teardown(() => {
+    npmConfig.viewer = undefined
+    spawnCode = 0
+    globResult = globDefaults
+    spawnBin = null
+    spawnArgs = null
+  })
+
+  return help.exec(['?(un)star'], (err) => {
+    t.match(err, /help process exited with code: 1/, 'received the correct error')
     t.equal(spawnBin, 'emacsclient', 'maps woman to emacs correctly')
     t.strictSame(spawnArgs, ['-e', `(woman-find-file '/root/man/man1/npm-unstar.1')`], 'passes the correct arguments')
     t.end()
@@ -351,10 +369,32 @@ test('npm help un*', t => {
     spawnArgs = null
   })
 
-  return help(['un*'], (err) => {
+  return help.exec(['un*'], (err) => {
     if (err)
       throw err
 
+    t.equal(spawnBin, 'man', 'calls man by default')
+    t.strictSame(spawnArgs, ['1', 'npm-unstar'], 'passes the correct arguments')
+    t.end()
+  })
+})
+
+test('npm help - man viewer propagates errors', t => {
+  spawnCode = 1
+  globResult = [
+    '/root/man/man1/npm-unstar.1',
+    '/root/man/man1/npm-uninstall.1',
+    '/root/man/man1/npm-unpublish.1',
+  ]
+  t.teardown(() => {
+    spawnCode = 0
+    globResult = globDefaults
+    spawnBin = null
+    spawnArgs = null
+  })
+
+  return help.exec(['un*'], (err) => {
+    t.match(err, /help process exited with code: 1/, 'received correct error')
     t.equal(spawnBin, 'man', 'calls man by default')
     t.strictSame(spawnArgs, ['1', 'npm-unstar'], 'passes the correct arguments')
     t.end()

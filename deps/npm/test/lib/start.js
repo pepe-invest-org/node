@@ -1,5 +1,17 @@
 const t = require('tap')
-const start = require('../../lib/start.js')
-t.isa(start, Function)
-t.equal(start.completion, require('../../lib/utils/completion/none.js'), 'empty completion')
+let runArgs
+const npm = {
+  commands: {
+    'run-script': (args, cb) => {
+      runArgs = args
+      cb()
+    },
+  },
+}
+const Start = require('../../lib/start.js')
+const start = new Start(npm)
 t.equal(start.usage, 'npm start [-- <args>]')
+start.exec(['foo'], () => {
+  t.match(runArgs, ['start', 'foo'])
+  t.end()
+})

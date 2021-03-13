@@ -766,7 +766,6 @@ PerProcessOptionsParser::PerProcessOptionsParser(
             &PerProcessOptions::ssl_openssl_cert_store);
   Implies("--use-openssl-ca", "[ssl_openssl_cert_store]");
   ImpliesNot("--use-bundled-ca", "[ssl_openssl_cert_store]");
-#if NODE_FIPS_MODE
   AddOption("--enable-fips",
             "enable FIPS crypto at startup",
             &PerProcessOptions::enable_fips_crypto,
@@ -775,7 +774,6 @@ PerProcessOptionsParser::PerProcessOptionsParser(
             "force FIPS crypto (cannot be disabled)",
             &PerProcessOptions::force_fips_crypto,
             kAllowedInEnvironment);
-#endif
   AddOption("--secure-heap",
             "total size of the OpenSSL secure heap",
             &PerProcessOptions::secure_heap,
@@ -945,12 +943,14 @@ void GetOptions(const FunctionCallbackInfo<Value>& args) {
                              *_ppop_instance.Lookup<bool>(field, opts));
         break;
       case kInteger:
-        value = Number::New(isolate,
-                            *_ppop_instance.Lookup<int64_t>(field, opts));
+        value = Number::New(
+            isolate,
+            static_cast<double>(*_ppop_instance.Lookup<int64_t>(field, opts)));
         break;
       case kUInteger:
-        value = Number::New(isolate,
-                            *_ppop_instance.Lookup<uint64_t>(field, opts));
+        value = Number::New(
+            isolate,
+            static_cast<double>(*_ppop_instance.Lookup<uint64_t>(field, opts)));
         break;
       case kString:
         if (!ToV8Value(context,

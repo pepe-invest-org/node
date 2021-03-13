@@ -39,23 +39,18 @@ const libnpmorg = {
   },
 }
 
-const org = requireInject('../../lib/org.js', {
-  '../../lib/npm.js': npm,
+const Org = requireInject('../../lib/org.js', {
   '../../lib/utils/otplease.js': async (opts, fn) => fn(opts),
   '../../lib/utils/output.js': (msg) => {
     output.push(msg)
   },
   libnpmorg,
 })
+const org = new Org(npm)
 
 test('completion', async t => {
-  const completion = (argv) => new Promise((resolve, reject) => {
-    org.completion({ conf: { argv: { remain: argv } } }, (err, res) => {
-      if (err)
-        return reject(err)
-      return resolve(res)
-    })
-  })
+  const completion = (argv) =>
+    org.completion({ conf: { argv: { remain: argv } } })
 
   const assertions = [
     [['npm', 'org'], ['set', 'rm', 'ls']],
@@ -66,13 +61,13 @@ test('completion', async t => {
   ]
 
   for (const [argv, expected] of assertions)
-    t.strictSame(await completion(argv), expected, `completion for: ${argv.join(', ')}`)
+    t.resolveMatch(completion(argv), expected, `completion for: ${argv.join(', ')}`)
 
   t.rejects(completion(['npm', 'org', 'flurb']), /flurb not recognized/, 'errors for unknown subcommand')
 })
 
 test('npm org - invalid subcommand', t => {
-  return org(['foo'], (err) => {
+  org.exec(['foo'], (err) => {
     t.match(err, /npm org set/, 'prints usage information')
     t.end()
   })
@@ -84,7 +79,7 @@ test('npm org add', t => {
     output.length = 0
   })
 
-  return org(['add', 'orgname', 'username'], (err) => {
+  org.exec(['add', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -105,7 +100,7 @@ test('npm org add - no org', t => {
     output.length = 0
   })
 
-  return org(['add', '', 'username'], (err) => {
+  org.exec(['add', '', 'username'], (err) => {
     t.match(err, /`orgname` is required/, 'returns the correct error')
     t.end()
   })
@@ -117,7 +112,7 @@ test('npm org add - no user', t => {
     output.length = 0
   })
 
-  return org(['add', 'orgname', ''], (err) => {
+  org.exec(['add', 'orgname', ''], (err) => {
     t.match(err, /`username` is required/, 'returns the correct error')
     t.end()
   })
@@ -129,7 +124,7 @@ test('npm org add - invalid role', t => {
     output.length = 0
   })
 
-  return org(['add', 'orgname', 'username', 'person'], (err) => {
+  org.exec(['add', 'orgname', 'username', 'person'], (err) => {
     t.match(err, /`role` must be one of/, 'returns the correct error')
     t.end()
   })
@@ -143,7 +138,7 @@ test('npm org add - more users', t => {
     output.length = 0
   })
 
-  return org(['add', 'orgname', 'username'], (err) => {
+  org.exec(['add', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -166,7 +161,7 @@ test('npm org add - json output', t => {
     output.length = 0
   })
 
-  return org(['add', 'orgname', 'username'], (err) => {
+  org.exec(['add', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -196,7 +191,7 @@ test('npm org add - parseable output', t => {
     output.length = 0
   })
 
-  return org(['add', 'orgname', 'username'], (err) => {
+  org.exec(['add', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -222,7 +217,7 @@ test('npm org add - silent output', t => {
     output.length = 0
   })
 
-  return org(['add', 'orgname', 'username'], (err) => {
+  org.exec(['add', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -244,7 +239,7 @@ test('npm org rm', t => {
     output.length = 0
   })
 
-  return org(['rm', 'orgname', 'username'], (err) => {
+  org.exec(['rm', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -269,7 +264,7 @@ test('npm org rm - no org', t => {
     output.length = 0
   })
 
-  return org(['rm', '', 'username'], (err) => {
+  org.exec(['rm', '', 'username'], (err) => {
     t.match(err, /`orgname` is required/, 'threw the correct error')
     t.end()
   })
@@ -282,7 +277,7 @@ test('npm org rm - no user', t => {
     output.length = 0
   })
 
-  return org(['rm', 'orgname'], (err) => {
+  org.exec(['rm', 'orgname'], (err) => {
     t.match(err, /`username` is required/, 'threw the correct error')
     t.end()
   })
@@ -300,7 +295,7 @@ test('npm org rm - one user left', t => {
     output.length = 0
   })
 
-  return org(['rm', 'orgname', 'username'], (err) => {
+  org.exec(['rm', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -327,7 +322,7 @@ test('npm org rm - json output', t => {
     output.length = 0
   })
 
-  return org(['rm', 'orgname', 'username'], (err) => {
+  org.exec(['rm', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -359,7 +354,7 @@ test('npm org rm - parseable output', t => {
     output.length = 0
   })
 
-  return org(['rm', 'orgname', 'username'], (err) => {
+  org.exec(['rm', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -389,7 +384,7 @@ test('npm org rm - silent output', t => {
     output.length = 0
   })
 
-  return org(['rm', 'orgname', 'username'], (err) => {
+  org.exec(['rm', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -419,7 +414,7 @@ test('npm org ls', t => {
     output.length = 0
   })
 
-  return org(['ls', 'orgname'], (err) => {
+  org.exec(['ls', 'orgname'], (err) => {
     if (err)
       throw err
 
@@ -446,7 +441,7 @@ test('npm org ls - user filter', t => {
     output.length = 0
   })
 
-  return org(['ls', 'orgname', 'username'], (err) => {
+  org.exec(['ls', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -471,7 +466,7 @@ test('npm org ls - user filter, missing user', t => {
     output.length = 0
   })
 
-  return org(['ls', 'orgname', 'username'], (err) => {
+  org.exec(['ls', 'orgname', 'username'], (err) => {
     if (err)
       throw err
 
@@ -492,7 +487,7 @@ test('npm org ls - no org', t => {
     output.length = 0
   })
 
-  return org(['ls'], (err) => {
+  org.exec(['ls'], (err) => {
     t.match(err, /`orgname` is required/, 'throws the correct error')
     t.end()
   })
@@ -512,7 +507,7 @@ test('npm org ls - json output', t => {
     output.length = 0
   })
 
-  return org(['ls', 'orgname'], (err) => {
+  org.exec(['ls', 'orgname'], (err) => {
     if (err)
       throw err
 
@@ -539,7 +534,7 @@ test('npm org ls - parseable output', t => {
     output.length = 0
   })
 
-  return org(['ls', 'orgname'], (err) => {
+  org.exec(['ls', 'orgname'], (err) => {
     if (err)
       throw err
 
@@ -571,7 +566,7 @@ test('npm org ls - silent output', t => {
     output.length = 0
   })
 
-  return org(['ls', 'orgname'], (err) => {
+  org.exec(['ls', 'orgname'], (err) => {
     if (err)
       throw err
 

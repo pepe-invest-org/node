@@ -358,7 +358,7 @@ inline T* Environment::GetBindingData(v8::Local<v8::Context> context) {
       context->GetAlignedPointerFromEmbedderData(
           ContextEmbedderIndex::kBindingListIndex));
   DCHECK_NOT_NULL(map);
-  auto it = map->find(T::binding_data_name);
+  auto it = map->find(T::type_name);
   if (UNLIKELY(it == map->end())) return nullptr;
   T* result = static_cast<T*>(it->second.get());
   DCHECK_NOT_NULL(result);
@@ -377,7 +377,7 @@ inline T* Environment::AddBindingData(
       context->GetAlignedPointerFromEmbedderData(
           ContextEmbedderIndex::kBindingListIndex));
   DCHECK_NOT_NULL(map);
-  auto result = map->emplace(T::binding_data_name, item);
+  auto result = map->emplace(T::type_name, item);
   CHECK(result.second);
   DCHECK_EQ(GetBindingData<T>(context), item.get());
   return item.get();
@@ -887,11 +887,6 @@ inline performance::PerformanceState* Environment::performance_state() {
   return performance_state_.get();
 }
 
-inline std::unordered_map<std::string, uint64_t>*
-    Environment::performance_marks() {
-  return &performance_marks_;
-}
-
 inline IsolateData* Environment::isolate_data() const {
   return isolate_data_;
 }
@@ -1082,6 +1077,17 @@ void Environment::ForEachBaseObject(T&& iterator) {
     BaseObject* obj = hook.GetBaseObject();
     if (obj != nullptr)
       iterator(obj);
+  }
+}
+
+template <typename T>
+void Environment::ForEachBindingData(T&& iterator) {
+  BindingDataStore* map = static_cast<BindingDataStore*>(
+      context()->GetAlignedPointerFromEmbedderData(
+          ContextEmbedderIndex::kBindingListIndex));
+  DCHECK_NOT_NULL(map);
+  for (auto& it : *map) {
+    iterator(it.first, it.second);
   }
 }
 

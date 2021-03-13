@@ -29,13 +29,13 @@ if a module is maintained by a third party or not.
 `module` in this context isn't the same object that's provided
 by the [module wrapper][]. To access it, require the `Module` module:
 
-```js
+```mjs
 // module.mjs
 // In an ECMAScript module
 import { builtinModules as builtin } from 'module';
 ```
 
-```js
+```cjs
 // module.cjs
 // In a CommonJS module
 const builtin = require('module').builtinModules;
@@ -51,32 +51,12 @@ added: v12.2.0
   string.
 * Returns: {require} Require function
 
-```js
+```mjs
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
 // sibling-module.js is a CommonJS module.
 const siblingModule = require('./sibling-module');
-```
-
-### `module.createRequireFromPath(filename)`
-<!-- YAML
-added: v10.12.0
-deprecated: v12.2.0
--->
-
-> Stability: 0 - Deprecated: Please use [`createRequire()`][] instead.
-
-* `filename` {string} Filename to be used to construct the relative require
-  function.
-* Returns: {require} Require function
-
-```js
-const { createRequireFromPath } = require('module');
-const requireUtil = createRequireFromPath('../src/utils/');
-
-// Require `../src/utils/some-tool`
-requireUtil('./some-tool');
 ```
 
 ### `module.syncBuiltinESMExports()`
@@ -134,13 +114,13 @@ To enable source map parsing, Node.js must be run with the flag
 [`--enable-source-maps`][], or with code coverage enabled by setting
 [`NODE_V8_COVERAGE=dir`][].
 
-```js
+```mjs
 // module.mjs
 // In an ECMAScript module
 import { findSourceMap, SourceMap } from 'module';
 ```
 
-```js
+```cjs
 // module.cjs
 // In a CommonJS module
 const { findSourceMap, SourceMap } = require('module');
@@ -214,7 +194,6 @@ consists of the following keys:
 [`--enable-source-maps`]: cli.md#cli_enable_source_maps
 [`NODE_V8_COVERAGE=dir`]: cli.md#cli_node_v8_coverage_dir
 [`SourceMap`]: #module_class_module_sourcemap
-[`createRequire()`]: #module_module_createrequire_filename
 [`module`]: modules.md#modules_the_module_object
 [module wrapper]: modules.md#modules_the_module_wrapper
 [source map include directives]: https://sourcemaps.info/spec.html#h.lmz475t4mvbx

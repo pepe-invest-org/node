@@ -33,24 +33,17 @@ const pacote = {
 
 // keep a tally of which urls got opened
 const opened = {}
-const openUrl = (url, errMsg, cb) => {
+const openUrl = async (npm, url, errMsg) => {
   opened[url] = opened[url] || 0
   opened[url]++
-  process.nextTick(cb)
 }
 
-const docs = requireInject('../../lib/docs.js', {
+const Docs = requireInject('../../lib/docs.js', {
   pacote,
   '../../lib/utils/open-url.js': openUrl,
 })
 
-t.test('completion', t => {
-  docs.completion({}, (er, res) => {
-    t.equal(er, null)
-    t.same(res, [])
-    t.end()
-  })
-})
+const docs = new Docs({ flatOptions: {} })
 
 t.test('open docs urls', t => {
   const expect = {
@@ -64,7 +57,7 @@ t.test('open docs urls', t => {
   t.plan(keys.length)
   keys.forEach(pkg => {
     t.test(pkg, t => {
-      docs([pkg], (er) => {
+      docs.exec([pkg], (er) => {
         if (er)
           throw er
         const url = expect[pkg]
@@ -76,7 +69,7 @@ t.test('open docs urls', t => {
 })
 
 t.test('open default package if none specified', t => {
-  docs([], (er) => {
+  docs.exec([], (er) => {
     if (er)
       throw er
     t.equal(opened['https://example.com'], 2, 'opened expected url', {opened})

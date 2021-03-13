@@ -11,41 +11,39 @@ const { NodeEventTarget } = require('internal/event_target');
 
 const timerPromises = require('timers/promises');
 
-/* eslint-disable no-restricted-syntax */
-
-const setTimeout = promisify(timers.setTimeout);
-const setImmediate = promisify(timers.setImmediate);
+const setPromiseTimeout = promisify(timers.setTimeout);
+const setPromiseImmediate = promisify(timers.setImmediate);
 const exec = promisify(child_process.exec);
 
-assert.strictEqual(setTimeout, timerPromises.setTimeout);
-assert.strictEqual(setImmediate, timerPromises.setImmediate);
+assert.strictEqual(setPromiseTimeout, timerPromises.setTimeout);
+assert.strictEqual(setPromiseImmediate, timerPromises.setImmediate);
 const { setInterval } = timerPromises;
 
 process.on('multipleResolves', common.mustNotCall());
 
 {
-  const promise = setTimeout(1);
+  const promise = setPromiseTimeout(1);
   promise.then(common.mustCall((value) => {
     assert.strictEqual(value, undefined);
   }));
 }
 
 {
-  const promise = setTimeout(1, 'foobar');
+  const promise = setPromiseTimeout(1, 'foobar');
   promise.then(common.mustCall((value) => {
     assert.strictEqual(value, 'foobar');
   }));
 }
 
 {
-  const promise = setImmediate();
+  const promise = setPromiseImmediate();
   promise.then(common.mustCall((value) => {
     assert.strictEqual(value, undefined);
   }));
 }
 
 {
-  const promise = setImmediate('foobar');
+  const promise = setPromiseImmediate('foobar');
   promise.then(common.mustCall((value) => {
     assert.strictEqual(value, 'foobar');
   }));
@@ -94,7 +92,7 @@ process.on('multipleResolves', common.mustNotCall());
 {
   const ac = new AbortController();
   const signal = ac.signal;
-  assert.rejects(setTimeout(10, undefined, { signal }), /AbortError/)
+  assert.rejects(setPromiseTimeout(10, undefined, { signal }), /AbortError/)
     .then(common.mustCall());
   ac.abort();
 }
@@ -103,14 +101,14 @@ process.on('multipleResolves', common.mustNotCall());
   const ac = new AbortController();
   const signal = ac.signal;
   ac.abort(); // Abort in advance
-  assert.rejects(setTimeout(10, undefined, { signal }), /AbortError/)
+  assert.rejects(setPromiseTimeout(10, undefined, { signal }), /AbortError/)
     .then(common.mustCall());
 }
 
 {
   const ac = new AbortController();
   const signal = ac.signal;
-  assert.rejects(setImmediate(10, { signal }), /AbortError/)
+  assert.rejects(setPromiseImmediate(10, { signal }), /AbortError/)
     .then(common.mustCall());
   ac.abort();
 }
@@ -119,7 +117,7 @@ process.on('multipleResolves', common.mustNotCall());
   const ac = new AbortController();
   const signal = ac.signal;
   ac.abort(); // Abort in advance
-  assert.rejects(setImmediate(10, { signal }), /AbortError/)
+  assert.rejects(setPromiseImmediate(10, { signal }), /AbortError/)
     .then(common.mustCall());
 }
 
@@ -167,18 +165,17 @@ process.on('multipleResolves', common.mustNotCall());
   // Check that aborting after resolve will not reject.
   const ac = new AbortController();
   const signal = ac.signal;
-  assert.doesNotReject(setTimeout(10, undefined, { signal })
-    .then(common.mustCall(() => {
-      ac.abort();
-    }))).then(common.mustCall());
+  setPromiseTimeout(10, undefined, { signal })
+    .then(common.mustCall(() => { ac.abort(); }))
+    .then(common.mustCall());
 }
 {
   // Check that aborting after resolve will not reject.
   const ac = new AbortController();
   const signal = ac.signal;
-  assert.doesNotReject(setImmediate(10, { signal }).then(common.mustCall(() => {
-    ac.abort();
-  }))).then(common.mustCall());
+  setPromiseImmediate(10, { signal })
+    .then(common.mustCall(() => { ac.abort(); }))
+    .then(common.mustCall());
 }
 
 {
@@ -205,7 +202,7 @@ process.on('multipleResolves', common.mustNotCall());
   // Check that timer adding signals does not leak handlers
   const signal = new NodeEventTarget();
   signal.aborted = false;
-  setTimeout(0, null, { signal }).finally(common.mustCall(() => {
+  setPromiseTimeout(0, null, { signal }).finally(common.mustCall(() => {
     assert.strictEqual(signal.listenerCount('abort'), 0);
   }));
 }
@@ -214,7 +211,7 @@ process.on('multipleResolves', common.mustNotCall());
   // Check that timer adding signals does not leak handlers
   const signal = new NodeEventTarget();
   signal.aborted = false;
-  setImmediate(0, { signal }).finally(common.mustCall(() => {
+  setPromiseImmediate(0, { signal }).finally(common.mustCall(() => {
     assert.strictEqual(signal.listenerCount('abort'), 0);
   }));
 }
@@ -258,39 +255,52 @@ process.on('multipleResolves', common.mustNotCall());
 
 {
   Promise.all(
-    [1, '', false, Infinity].map((i) => assert.rejects(setImmediate(10, i)), {
-      code: 'ERR_INVALID_ARG_TYPE'
-    })).then(common.mustCall());
+    [1, '', false, Infinity].map(
+      (i) => assert.rejects(setPromiseImmediate(10, i), {
+        code: 'ERR_INVALID_ARG_TYPE'
+      })
+    )
+  ).then(common.mustCall());
 
   Promise.all(
     [1, '', false, Infinity, null, {}].map(
-      (signal) => assert.rejects(setImmediate(10, { signal })), {
+      (signal) => assert.rejects(setPromiseImmediate(10, { signal }), {
         code: 'ERR_INVALID_ARG_TYPE'
-      })).then(common.mustCall());
+      })
+    )
+  ).then(common.mustCall());
 
   Promise.all(
     [1, '', Infinity, null, {}].map(
-      (ref) => assert.rejects(setImmediate(10, { ref })), {
+      (ref) => assert.rejects(setPromiseImmediate(10, { ref }), {
         code: 'ERR_INVALID_ARG_TYPE'
-      })).then(common.mustCall());
+      })
+    )
+  ).then(common.mustCall());
 
   Promise.all(
     [1, '', false, Infinity].map(
-      (i) => assert.rejects(setTimeout(10, null, i)), {
+      (i) => assert.rejects(setPromiseTimeout(10, null, i), {
         code: 'ERR_INVALID_ARG_TYPE'
-      })).then(common.mustCall());
+      })
+    )
+  ).then(common.mustCall());
 
   Promise.all(
     [1, '', false, Infinity, null, {}].map(
-      (signal) => assert.rejects(setTimeout(10, null, { signal })), {
+      (signal) => assert.rejects(setPromiseTimeout(10, null, { signal }), {
         code: 'ERR_INVALID_ARG_TYPE'
-      })).then(common.mustCall());
+      })
+    )
+  ).then(common.mustCall());
 
   Promise.all(
     [1, '', Infinity, null, {}].map(
-      (ref) => assert.rejects(setTimeout(10, null, { ref })), {
+      (ref) => assert.rejects(setPromiseTimeout(10, null, { ref }), {
         code: 'ERR_INVALID_ARG_TYPE'
-      })).then(common.mustCall());
+      })
+    )
+  ).then(common.mustCall());
 }
 
 {
@@ -348,24 +358,57 @@ process.on('multipleResolves', common.mustNotCall());
       assert.strictEqual(loopCount, 5);
     }));
   }
+
+  {
+    // Check that if we abort when we have some unresolved callbacks,
+    // we actually call them.
+    const controller = new AbortController();
+    const { signal } = controller;
+    const delay = 10;
+    let totalIterations = 0;
+    const timeoutLoop = runInterval(async (iterationNumber) => {
+      await setPromiseTimeout(delay * 4);
+      if (iterationNumber <= 2) {
+        assert.strictEqual(signal.aborted, false);
+      }
+      if (iterationNumber === 2) {
+        controller.abort();
+      }
+      if (iterationNumber > 2) {
+        assert.strictEqual(signal.aborted, true);
+      }
+      if (iterationNumber > totalIterations) {
+        totalIterations = iterationNumber;
+      }
+    }, delay, signal);
+
+    timeoutLoop.catch(common.mustCall(() => {
+      assert.ok(totalIterations >= 3, `iterations was ${totalIterations} < 3`);
+    }));
+  }
 }
 
 {
   // Check that the timing is correct
   let pre = false;
   let post = false;
-  setTimeout(1).then(() => pre = true);
-  const iterable = setInterval(2);
-  const iterator = iterable[Symbol.asyncIterator]();
 
-  iterator.next().then(common.mustCall(() => {
-    assert.ok(pre, 'interval ran too early');
-    assert.ok(!post, 'interval ran too late');
-    return iterator.next();
-  })).then(common.mustCall(() => {
-    assert.ok(post, 'second interval ran too early');
-    return iterator.return();
-  }));
+  const time_unit = 50;
+  Promise.all([
+    setPromiseTimeout(1).then(() => pre = true),
+    new Promise((res) => {
+      const iterable = timerPromises.setInterval(time_unit * 2);
+      const iterator = iterable[Symbol.asyncIterator]();
 
-  setTimeout(3).then(() => post = true);
+      iterator.next().then(() => {
+        assert.ok(pre, 'interval ran too early');
+        assert.ok(!post, 'interval ran too late');
+        return iterator.next();
+      }).then(() => {
+        assert.ok(post, 'second interval ran too early');
+        return iterator.return();
+      }).then(res);
+    }),
+    setPromiseTimeout(time_unit * 3).then(() => post = true)
+  ]).then(common.mustCall());
 }

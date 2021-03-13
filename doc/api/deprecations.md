@@ -2051,12 +2051,15 @@ expose values under these names.
 ### DEP0109: `http`, `https`, and `tls` support for invalid URLs
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/36853
+    description: End-of-Life.
   - version: v11.0.0
     pr-url: https://github.com/nodejs/node/pull/20270
     description: Runtime deprecation.
 -->
 
-Type: Runtime
+Type: End-of-Life
 
 Some previously supported (but strictly invalid) URLs were accepted through the
 [`http.request()`][], [`http.get()`][], [`https.request()`][],
@@ -2347,12 +2350,15 @@ with no performance impact since Node.js 10.
 ### DEP0128: modules with an invalid `main` entry and an `index.js` file
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/37204
+    description: Runtime deprecation.
   - version: v12.0.0
     pr-url: https://github.com/nodejs/node/pull/26823
     description: Documentation-only.
 -->
 
-Type: Documentation-only (supports [`--pending-deprecation`][])
+Type: Runtime
 
 Modules that have an invalid `main` entry (e.g., `./does-not-exist.js`) and
 also have an `index.js` file in the top level directory will resolve the
@@ -2379,6 +2385,9 @@ instead.
 ### DEP0130: `Module.createRequireFromPath()`
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/37201
+    description: End-of-life.
   - version: v13.0.0
     pr-url: https://github.com/nodejs/node/pull/27951
     description: Runtime deprecation.
@@ -2387,10 +2396,9 @@ changes:
     description: Documentation-only.
 -->
 
-Type: Runtime
+Type: End-of-Life
 
-Module.createRequireFromPath() is deprecated. Please use
-[`module.createRequire()`][] instead.
+Use [`module.createRequire()`][] instead.
 
 ### DEP0131: Legacy HTTP parser
 <!-- YAML
@@ -2480,7 +2488,7 @@ called, not whether `'finish'` has been emitted and the underlying data
 is flushed.
 
 Use [`response.writableFinished`][] or [`response.writableEnded`][]
-accordingly instead to avoid the ambigiuty.
+accordingly instead to avoid the ambiguity.
 
 To maintain existing behaviour `response.finished` should be replaced with
 `response.writableEnded`.
@@ -2742,6 +2750,22 @@ Previously, `index.js` and extension searching lookups would apply to
 
 With this deprecation, all ES module main entry point resolutions require
 an explicit [`"exports"` or `"main"` entry][] with the exact file extension.
+
+### DEP0152: Extension PerformanceEntry properties
+<!-- YAML
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/37136
+    description: Runtime deprecation.
+-->
+
+Type: Runtime
+
+The `'gc'`, `'http2'`, and `'http'` {PerformanceEntry} object types have
+additional properties assigned to them that provide additional information.
+These properties are now available within the standard `detail` property
+of the `PerformanceEntry` object. The existing accessors have been
+deprecated and should no longer be used.
 
 [Legacy URL API]: url.md#url_legacy_url_api
 [NIST SP 800-38D]: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf

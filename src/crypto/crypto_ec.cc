@@ -15,6 +15,8 @@
 #include <openssl/ec.h>
 #include <openssl/ecdh.h>
 
+#include <algorithm>
+
 namespace node {
 
 using v8::Array;
@@ -601,9 +603,11 @@ WebCryptoKeyExportStatus EC_Raw_Export(
     KeyObjectData* key_data,
     const ECKeyExportConfig& params,
     ByteSource* out) {
-  CHECK(key_data->GetAsymmetricKey());
+  ManagedEVPPKey m_pkey = key_data->GetAsymmetricKey();
+  CHECK(m_pkey);
+  Mutex::ScopedLock lock(*m_pkey.mutex());
 
-  EC_KEY* ec_key = EVP_PKEY_get0_EC_KEY(key_data->GetAsymmetricKey().get());
+  EC_KEY* ec_key = EVP_PKEY_get0_EC_KEY(m_pkey.get());
 
   unsigned char* data;
   size_t len = 0;
@@ -688,10 +692,11 @@ Maybe<bool> ExportJWKEcKey(
     Environment* env,
     std::shared_ptr<KeyObjectData> key,
     Local<Object> target) {
-  ManagedEVPPKey pkey = key->GetAsymmetricKey();
-  CHECK_EQ(EVP_PKEY_id(pkey.get()), EVP_PKEY_EC);
+  ManagedEVPPKey m_pkey = key->GetAsymmetricKey();
+  Mutex::ScopedLock lock(*m_pkey.mutex());
+  CHECK_EQ(EVP_PKEY_id(m_pkey.get()), EVP_PKEY_EC);
 
-  EC_KEY* ec = EVP_PKEY_get0_EC_KEY(pkey.get());
+  EC_KEY* ec = EVP_PKEY_get0_EC_KEY(m_pkey.get());
   CHECK_NOT_NULL(ec);
 
   const EC_POINT* pub = EC_KEY_get0_public_key(ec);
@@ -893,10 +898,11 @@ Maybe<bool> GetEcKeyDetail(
     Environment* env,
     std::shared_ptr<KeyObjectData> key,
     Local<Object> target) {
-  ManagedEVPPKey pkey = key->GetAsymmetricKey();
-  CHECK_EQ(EVP_PKEY_id(pkey.get()), EVP_PKEY_EC);
+  ManagedEVPPKey m_pkey = key->GetAsymmetricKey();
+  Mutex::ScopedLock lock(*m_pkey.mutex());
+  CHECK_EQ(EVP_PKEY_id(m_pkey.get()), EVP_PKEY_EC);
 
-  EC_KEY* ec = EVP_PKEY_get0_EC_KEY(pkey.get());
+  EC_KEY* ec = EVP_PKEY_get0_EC_KEY(m_pkey.get());
   CHECK_NOT_NULL(ec);
 
   const EC_GROUP* group = EC_KEY_get0_group(ec);
@@ -921,64 +927,5 @@ size_t GroupOrderSize(ManagedEVPPKey key) {
   CHECK(EC_GROUP_get_order(group, order.get(), nullptr));
   return BN_num_bytes(order.get());
 }
-
-ByteSource ConvertToWebCryptoSignature(
-    ManagedEVPPKey key,
-    const ByteSource& signature) {
-  const unsigned char* data =
-      reinterpret_cast<const unsigned char*>(signature.get());
-  EcdsaSigPointer ecsig(d2i_ECDSA_SIG(nullptr, &data, signature.size()));
-
-  if (!ecsig)
-    return ByteSource();
-
-  size_t order_size_bytes = GroupOrderSize(key);
-  char* outdata = MallocOpenSSL<char>(order_size_bytes * 2);
-  ByteSource out = ByteSource::Allocated(outdata, order_size_bytes * 2);
-  unsigned char* ptr = reinterpret_cast<unsigned char*>(outdata);
-
-  const BIGNUM* pr;
-  const BIGNUM* ps;
-  ECDSA_SIG_get0(ecsig.get(), &pr, &ps);
-
-  if (!BN_bn2binpad(pr, ptr, order_size_bytes) ||
-      !BN_bn2binpad(ps, ptr + order_size_bytes, order_size_bytes)) {
-    return ByteSource();
-  }
-  return out;
-}
-
-ByteSource ConvertFromWebCryptoSignature(
-    ManagedEVPPKey key,
-    const ByteSource& signature) {
-  size_t order_size_bytes = GroupOrderSize(key);
-
-  // If the size of the signature is incorrect, verification
-  // will fail.
-  if (signature.size() != 2 * order_size_bytes)
-    return ByteSource();  // Empty!
-
-  EcdsaSigPointer ecsig(ECDSA_SIG_new());
-  if (!ecsig)
-    return ByteSource();
-
-  BignumPointer r(BN_new());
-  BignumPointer s(BN_new());
-
-  const unsigned char* sig = signature.data<unsigned char>();
-
-  if (!BN_bin2bn(sig, order_size_bytes, r.get()) ||
-      !BN_bin2bn(sig + order_size_bytes, order_size_bytes, s.get()) ||
-      !ECDSA_SIG_set0(ecsig.get(), r.release(), s.release())) {
-    return ByteSource();
-  }
-
-  int size = i2d_ECDSA_SIG(ecsig.get(), nullptr);
-  char* data = MallocOpenSSL<char>(size);
-  unsigned char* ptr = reinterpret_cast<unsigned char*>(data);
-  CHECK_EQ(i2d_ECDSA_SIG(ecsig.get(), &ptr), size);
-  return ByteSource::Allocated(data, size);
-}
-
 }  // namespace crypto
 }  // namespace node

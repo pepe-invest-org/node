@@ -1823,7 +1823,7 @@ would be possible by calling a callback more than once.
 <a id="ERR_NAPI_CONS_FUNCTION"></a>
 ### `ERR_NAPI_CONS_FUNCTION`
 
-While using `N-API`, a constructor passed was not a function.
+While using `Node-API`, a constructor passed was not a function.
 
 <a id="ERR_NAPI_INVALID_DATAVIEW_ARGS"></a>
 ### `ERR_NAPI_INVALID_DATAVIEW_ARGS`
@@ -1902,6 +1902,16 @@ package specifier mapping.
 The `package.json` [`"exports"`][] field does not export the requested subpath.
 Because exports are encapsulated, private internal modules that are not exported
 cannot be imported through the package resolution, unless using an absolute URL.
+
+<a id="ERR_PERFORMANCE_INVALID_TIMESTAMP"></a>
+### `ERR_PERFORMANCE_INVALID_TIMESTAMP`
+
+An invalid timestamp value was provided for a performance mark or measure.
+
+<a id="ERR_PERFORMANCE_MEASURE_INVALID_OPTIONS"></a>
+### `ERR_PERFORMANCE_MEASURE_INVALID_OPTIONS`
+
+Invalid options were provided for a performance measure.
 
 <a id="ERR_PROTO_ACCESS"></a>
 ### `ERR_PROTO_ACCESS`
@@ -2313,6 +2323,11 @@ than the parent module. Linked modules must share the same context.
 
 The linker function returned a module for which linking has failed.
 
+<a id="ERR_VM_MODULE_LINK_FAILURE"></a>
+### `ERR_VM_MODULE_LINK_FAILURE`
+
+The module was unable to be linked due to a failure.
+
 <a id="ERR_VM_MODULE_NOT_MODULE"></a>
 ### `ERR_VM_MODULE_NOT_MODULE`
 
@@ -2559,7 +2574,7 @@ added: v9.0.0
 removed: v10.0.0
 -->
 
-Used by the `N-API` when `Constructor.prototype` is not an object.
+Used by the `Node-API` when `Constructor.prototype` is not an object.
 
 <a id="ERR_NO_LONGER_SUPPORTED"></a>
 ### `ERR_NO_LONGER_SUPPORTED`

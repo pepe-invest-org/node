@@ -6,7 +6,11 @@ if (!common.hasCrypto)
   common.skip('missing crypto');
 
 const assert = require('assert');
-const { subtle } = require('crypto').webcrypto;
+
+const {
+  generateKeyPairSync,
+  webcrypto: { subtle }
+} = require('crypto');
 
 // X25519 and X448 are ECDH named curves that should work
 // with the existing ECDH mechanisms with no additional
@@ -55,10 +59,10 @@ async function importKey(namedCurve, keyData, isPublic = false) {
 
 assert.rejects(importKey('NODE-X25519', Buffer.alloc(10), true), {
   message: /NODE-X25519 raw keys must be exactly 32-bytes/
-});
+}).then(common.mustCall());
 assert.rejects(importKey('NODE-X448', Buffer.alloc(10), true), {
   message: /NODE-X448 raw keys must be exactly 56-bytes/
-});
+}).then(common.mustCall());
 
 async function test1(namedCurve) {
   const {
@@ -231,7 +235,7 @@ assert.rejects(
     ['deriveBits']),
   {
     message: /Unsupported named curves for ECDH/
-  });
+  }).then(common.mustCall());
 
 assert.rejects(
   subtle.generateKey(
@@ -243,4 +247,54 @@ assert.rejects(
     ['deriveBits']),
   {
     message: /Unsupported named curves for ECDH/
-  });
+  }).then(common.mustCall());
+
+{
+  // Private JWK import
+  subtle.importKey(
+    'jwk',
+    {
+      crv: 'X25519',
+      d: '8CE-XY7cvbR-Pu7mILHq8YZ4hLGAA2-RD01he5q2wUA',
+      x: '42IbTo34ZYANub5o42547vB6OxdEd44ztwZewoRch0Q',
+      kty: 'OKP'
+    },
+    {
+      name: 'ECDH',
+      namedCurve: 'NODE-X25519'
+    },
+    true,
+    ['deriveBits']).then(common.mustCall(), common.mustNotCall());
+
+  // Public JWK import
+  subtle.importKey(
+    'jwk',
+    {
+      crv: 'X25519',
+      x: '42IbTo34ZYANub5o42547vB6OxdEd44ztwZewoRch0Q',
+      kty: 'OKP'
+    },
+    {
+      name: 'ECDH',
+      namedCurve: 'NODE-X25519'
+    },
+    true,
+    []).then(common.mustCall(), common.mustNotCall());
+
+  for (const asymmetricKeyType of ['x25519', 'x448']) {
+    const { publicKey, privateKey } = generateKeyPairSync(asymmetricKeyType);
+    for (const keyObject of [publicKey, privateKey]) {
+      const namedCurve = `NODE-${asymmetricKeyType.toUpperCase()}`;
+      subtle.importKey(
+        'node.keyObject',
+        keyObject,
+        { name: 'ECDH', namedCurve },
+        true,
+        keyObject.type === 'private' ? ['deriveBits', 'deriveKey'] : [],
+      ).then((cryptoKey) => {
+        assert.strictEqual(cryptoKey.type, keyObject.type);
+        assert.strictEqual(cryptoKey.algorithm.name, 'ECDH');
+      }, common.mustNotCall());
+    }
+  }
+}
